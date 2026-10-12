@@ -629,12 +629,9 @@ export function LandingPage({ onOpen }: { onOpen: () => void }) {
               <span className="w-1.5 h-1.5 rounded-full bg-[var(--alert-green)]" />
               Local-first · Works offline · Data stays in your browser
             </span>
-            <button
-              onClick={() => scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
-              className="font-semibold hover:text-[var(--text-primary)] transition-colors"
-            >
-              Back to top ↑
-            </button>
+            <span className="font-semibold text-[var(--text-secondary)]">
+              Built by TimeGlobal
+            </span>
           </div>
         </div>
       </footer>
