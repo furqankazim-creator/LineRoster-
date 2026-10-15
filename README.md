@@ -80,18 +80,21 @@ npm run build        # Compiles production bundle into dist/
 ## System Architecture
 
 ```
-.github/
-  copilot-instructions.md # Corporate GitHub Copilot repository intelligence
-.vscode/
-  tasks.json              # 1-click VS Code tasks for Copilot & dev server
-  launch.json             # Edge launch configuration
-src/
-  domain/                 # Pure scheduling engine (generator, rotation, validation, workloadLive)
-  data/                   # Dexie IndexedDB schema & seeded Line 5 September 2026 data
-  io/                     # Excel import (.xlsx) and branded Excel export
-  features/               # Planner grid, People, Setup, Insights, Work Orders, Assistant
-  app/                    # App state store, persistence, shift color tokens
-server/                   # Optional Node + Express + MongoDB sync API (see server/README.md)
+frontend/                 # Complete Client Application (React 18 + Vite + Tailwind + Dexie)
+  src/
+    domain/               # Pure scheduling engine (generator, rotation, validation, workloadLive)
+    data/                 # Dexie IndexedDB schema & seeded Line 5 September 2026 data
+    io/                   # Excel import (.xlsx) and branded Excel export
+    features/             # Planner grid, People, Setup, Insights, Work Orders, Assistant
+    app/                  # App state store, persistence, shift color tokens
+  public/                 # Web assets & fonts
+  index.html              # HTML entry point
+  package.json            # Frontend dependencies & scripts
+server/                   # Complete Server Application (Express + MongoDB sync API + Collab)
+  src/                    # Server routes, models, auth, and audit
+  collabPlugin.ts         # Real-time SSE collaboration and cascade sync engine
+  data/                   # Shared JSON persistence (server/data/collab-db.json)
+  package.json            # Server dependencies & scripts
 docs/                     # Client user guide (docs/guide.html)
 COPILOT_PRESENTATION_GUIDE.md # Client presentation playbook for Copilot environments
 ```

@@ -23,7 +23,7 @@ For every work order:
 |---|---|
 | **Day** | Its **Scheduled Start** date (never another month's roster). |
 | **Shift** | Its own planned shift; otherwise CM → Evening, PM needing 4+ → Night, everything else → Morning. |
-| **Team** | **Line 5** = Line 5 people. **Line 4 & Line 6 = one shared team** (people of both lines together). |
+| **Team** | **Line 5** = Line 5 people. **Line 4&6 = one shared team** (people of both lines together). Combined = **Line 5 / 4&6**. |
 | **Available** | People of that team whose Planner cell that day belongs to the shift's family. `M`, `ML`, `MT` count as Morning (same for Evening and Night). GS, Project, Leave and rest do **not** count. |
 | **Crew needed** | The Setup standard for line + type + shift, unless the row has its own number (set with −/+). |
 | **Assignment** | Free people on that shift are handed out; nobody is booked twice on the same day and shift. A hand-picked crew (Manage Crew) is kept while those people are still on the shift. |
@@ -94,7 +94,7 @@ Columns are matched by **header name** (case, spaces and punctuation ignored), s
 
 ### Adding a column later
 
-Add one entry to `src/domain/workOrderColumns.ts`. No importer code changes:
+Add one entry to `frontend/src/domain/workOrderColumns.ts`. No importer code changes:
 
 ```ts
 { excelHeader: 'Priority', appField: 'priority', required: true, type: 'text', usedFor: 'Job priority' },
@@ -118,10 +118,11 @@ Add one entry to `src/domain/workOrderColumns.ts`. No importer code changes:
 
 | File | Role |
 |---|---|
-| `src/domain/workOrderColumns.ts` | Which Excel columns are read (config) + work-type rules |
-| `src/domain/workload.ts` | Excel importer, date/line parsing, crew standards lookup |
-| `src/domain/workloadLive.ts` | Live engine: placement, staff pools, assignment, balances, window checks |
-| `src/app/store.tsx` | Feeds every line's roster to the engine; adds work-order issues to the Planner |
-| `src/features/workorders/WorkOrdersPage.tsx` | Work Orders screen |
-| `src/features/assistant/appKnowledge.ts` | What the assistant is told about work orders + offline quick help |
-| Tests | `src/domain/__tests__/workloadLive.test.ts`, `workloadPlannerSync.test.ts`, `workOrderImport.test.ts` |
+| `frontend/src/domain/workOrderColumns.ts` | Which Excel columns are read (config) + work-type rules |
+| `frontend/src/domain/workload.ts` | Excel importer, date/line parsing, crew standards lookup |
+| `frontend/src/domain/workloadLive.ts` | Live engine: placement, staff pools, assignment, balances, window checks |
+| `frontend/src/app/store.tsx` | Feeds every line's roster to the engine; adds work-order issues to the Planner |
+| `frontend/src/features/workorders/WorkOrdersPage.tsx` | Work Orders screen |
+| `frontend/src/features/assistant/appKnowledge.ts` | What the assistant is told about work orders + offline quick help |
+| Tests | `frontend/src/domain/__tests__/workloadLive.test.ts`, `workloadPlannerSync.test.ts`, `workOrderImport.test.ts` |
+

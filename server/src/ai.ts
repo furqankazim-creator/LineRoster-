@@ -82,7 +82,7 @@ function describe(ctx: AiContext): string {
  * How the ShiftLine app works — so the assistant can answer "how do I…" and
  * "why does it show…" questions, not just questions about the grid.
  */
-const APP_GUIDE = `HOW SHIFTLINE WORKS (ALSTOM signalling & communication maintenance, Lines 4, 5, 6)
+const APP_GUIDE = `HOW SHIFTLINE WORKS (ALSTOM signalling & communication maintenance, Line 5 / 4&6)
 Pages (top bar): Planner, Work Orders, People, Setup. Plus Share Link, notifications, Ask ShiftLine (you).
 - Planner: monthly grid per line. Brush codes: M Morning, E Evening, N Night, ML/MT Morning variants, EL/ET Evening variants, NL/NT Night variants, GS General Shift, P Project, LV leave, - rest. "Generate month" builds from people's rules; "Auto-rotate" builds next month. Every edit autosaves in the browser; Ctrl+Z undoes. Insights panel → Issues (Must fix / Worth a look), Coverage, Hours, Fairness. "Show who can cover →" on a shortfall lists people off that day and assigns them in one click.
 - People: per line; name, default shift, rest days, rotation, leader, fixed. Line 4 and Line 6 are ONE shared team: their work orders use the people of both lines together.
@@ -90,7 +90,7 @@ Pages (top bar): Planner, Work Orders, People, Setup. Plus Share Link, notificat
   Each order is placed on its Scheduled Start date and a shift (its own choice, else CM→Evening, PM needing 4+→Night, otherwise Morning). Available staff = people of the line's team on that shift family that day in the Planner (M/ML/MT count as Morning; GS, leave, rest do not). Demand = sum of crew needed by that day's orders on that shift. Buffer = Available − Demand; negative = staff deficit. People are assigned without double-booking. All of this recalculates live on every Planner edit.
   Statuses: Staffed, Shortfall (some but not enough), Unassigned/Nobody free, No roster (line has no people), Not placed (no valid Scheduled Start or Line). Window checks: "outside window" = Scheduled Start before Start No Earlier Than or after Finish No Later Than; "past FNLT" = Finish No Later Than before today. Target Start and Reported Date are reference (target slip, age).
   Crew size: from Setup → Work Order Resource Standards per line/type/shift (tagged "Setup standard"), or set by hand with −/+ on the row. Work type from Description keywords: fault/repair/breakdown/corrective → CM; ACS/audit → ACS; else PM. "Manage Crew" lets you hand-pick people who are on that shift that day.
-- Setup: lines, shift codes (timings, minimum headcount, family/tone), Work Order Resource Standards (Line 4 & 6 share one set), security (supervisor password, each person's own passcode & link; revoke anytime), backups.
+- Setup: lines, shift codes (timings, minimum headcount, family/tone), Work Order Resource Standards (Line 4&6 share one set), security (supervisor password, each person's own passcode & link; revoke anytime), backups.
 How to fix a work-order deficit: add people to that shift on that day in the Planner (or Insights → Show who can cover → Assign), move the order's shift, or lower its Required People.`;
 
 const SYSTEM = `You are ShiftLine's assistant for a supervisor running a three-shift operation (Morning, Evening, Night) with fixed weekly rest days per person, and the maintenance work orders that need staff on those shifts.

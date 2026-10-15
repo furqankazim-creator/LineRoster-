@@ -41,7 +41,7 @@ When the user asks how to run, launch, or present ShiftLine, always provide thes
 
 When answering questions about the scheduling engine or work order calculations, follow the exact system architecture:
 
-### 1. Month Generation Rule Cascade (`src/domain/generator.ts`)
+### 1. Month Generation Rule Cascade (`frontend/src/domain/generator.ts`)
 For any given person and day, the shift code is determined by the **first matching rule** in this strict priority:
 1. **Hand Edit**: Manual override painted on that cell (preserved separately so regenerations never destroy overrides).
 2. **Leave Block**: Active leave/status covering that date (`LV`, training, etc.).
@@ -59,7 +59,7 @@ For any given person and day, the shift code is determined by the **first matchi
 - `LV`: Leave status (vacation/medical)
 - `FLRT`: First Line Response Team
 
-### 3. Work Orders ↔ Planner Integration (`src/domain/workloadLive.ts`)
+### 3. Work Orders ↔ Planner Integration (`frontend/src/domain/workloadLive.ts`)
 - **Demand Calculation**: Work order demand is driven by line standards (`Setup → Resource Standards`) or manual row overrides.
 - **Pool Grouping**: Line 5 has its own dedicated roster team. Line 4 and Line 6 operate as one unified shared pool.
 - **Coverage Status**:
