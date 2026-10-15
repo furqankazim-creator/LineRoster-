@@ -11,8 +11,7 @@ import type { Employee, LeaveBlock, Line, ResourceRequirement, ShiftCode, WorkOr
 
 export const SEED_LINES: Line[] = [
   { id: 'line5', name: 'Line 5', prefix: 'SLV', order: 1 },
-  { id: 'line4', name: 'Line 4', prefix: 'SLV', order: 2 },
-  { id: 'line6', name: 'Line 6', prefix: 'SLV', order: 3 },
+  { id: 'line6', name: 'Line 4 & 6', prefix: 'SLV', order: 2 },
 ];
 
 /**

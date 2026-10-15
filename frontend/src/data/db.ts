@@ -371,6 +371,25 @@ export async function ensureSeeded(): Promise<void> {
     }
   }
 
+  // Ensure lines match the client's 2-line model (Line 5 and Line 4 & 6 combined)
+  const existingLines = await db.lines.toArray();
+  const hasLine4 = existingLines.some((l) => l.id === 'line4');
+  const line6 = existingLines.find((l) => l.id === 'line6');
+  if (hasLine4) {
+    await db.lines.delete('line4');
+    if (line6 && line6.name !== 'Line 4 & 6') {
+      await db.lines.put({ ...line6, name: 'Line 4 & 6' });
+    }
+    // Re-assign any orphaned employees/codes from line4 to line6
+    const line4Emps = await db.employees.where('lineId').equals('line4').toArray();
+    for (const e of line4Emps) await db.employees.put({ ...e, lineId: 'line6' });
+    const line4Codes = await db.shiftCodes.where('scope').equals('line4').toArray();
+    for (const c of line4Codes) await db.shiftCodes.put({ ...c, scope: 'line6', key: codeKey(c.id, 'line6') });
+    await db.shiftCodes.where('scope').equals('line4').delete();
+  } else if (line6 && line6.name !== 'Line 4 & 6') {
+    await db.lines.put({ ...line6, name: 'Line 4 & 6' });
+  }
+
   if (existing?.seeded) return;
 
   await db.transaction('rw', db.lines, db.employees, db.shiftCodes, db.leave, db.settings, async () => {
