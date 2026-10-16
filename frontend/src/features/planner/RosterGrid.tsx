@@ -7,6 +7,7 @@ import { codeVars } from '@/app/tones';
 import { cx } from '@/components/ui';
 import { todayIndex } from '@/domain/calendar';
 import { formatHours } from '@/domain/hours';
+import { isLeaderEmployee } from '@/domain/rotation';
 import { OFF, type Issue, type ShiftCode } from '@/domain/types';
 
 import { CellPicker } from './CellPicker';
@@ -307,6 +308,9 @@ export function RosterGrid({ brush, revealKey, jumpTo }: Props) {
                   >
                     {employee.name}
                   </span>
+                  {isLeaderEmployee(employee) && (
+                    <span className="shrink-0 text-[11px] leading-none" title="Team leader" aria-label="Team leader">👑</span>
+                  )}
                   {showContact && (
                     <span
                       className="ml-auto font-mono text-[10.5px] text-ink-3 shrink-0"

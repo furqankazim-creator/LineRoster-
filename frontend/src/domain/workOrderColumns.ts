@@ -70,10 +70,11 @@ export const WORK_TYPE_RULES: { type: 'PM' | 'CM' | 'ACS'; pattern: RegExp }[] =
   { type: 'ACS', pattern: /\b(acs|audit|access control)\b/i },
 ];
 
-/** Built-in yellow columns + the ones added in Setup (built-in wins on a clash). */
-export function allWorkOrderColumns(custom: WorkOrderColumn[] = []): WorkOrderColumn[] {
-  const taken = new Set(WORK_ORDER_COLUMNS.flatMap((c) => [c.excelHeader, ...(c.aliases ?? [])].map(headerKey)));
-  return [...WORK_ORDER_COLUMNS, ...custom.filter((c) => !taken.has(headerKey(c.excelHeader)))];
+/** Built-in yellow columns (minus any removed in Setup) + the ones added in Setup (built-in wins on a clash). */
+export function allWorkOrderColumns(custom: WorkOrderColumn[] = [], removed: string[] = []): WorkOrderColumn[] {
+  const builtIn = WORK_ORDER_COLUMNS.filter((c) => !removed.includes(c.excelHeader));
+  const taken = new Set(builtIn.flatMap((c) => [c.excelHeader, ...(c.aliases ?? [])].map(headerKey)));
+  return [...builtIn, ...custom.filter((c) => !taken.has(headerKey(c.excelHeader)))];
 }
 
 /** Field name for a column added in Setup: "Job Priority" → "jobPriority". */

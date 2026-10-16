@@ -338,9 +338,9 @@ export function LandingPage({ onOpen }: { onOpen: () => void }) {
 
           <SectionReveal delayIndex={1}>
             <h1 className="mt-6 text-4xl sm:text-6xl lg:text-7xl font-black tracking-tight text-[var(--text-primary)] max-w-5xl mx-auto leading-[1.1]">
-              Signalling &amp; Communication{' '}
+              SLV Operational Roster Planning &amp;{' '}
               <span className="bg-clip-text text-transparent" style={{ backgroundImage: 'var(--brand-gradient)' }}>
-                Workforce Management System
+                Maintenance Work Scheduling System
               </span>
             </h1>
           </SectionReveal>
@@ -479,9 +479,6 @@ export function LandingPage({ onOpen }: { onOpen: () => void }) {
             <span className="flex items-center gap-2">
               <span className="w-1.5 h-1.5 rounded-full bg-[var(--alert-green)]" />
               Local-first · Works offline · Data stays in your browser
-            </span>
-            <span className="font-semibold text-[var(--text-secondary)]">
-              Built by TimeGlobal
             </span>
           </div>
         </div>

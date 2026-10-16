@@ -226,6 +226,8 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
 
   // Columns added in Setup → Excel import columns (shown on rows and exported)
   const extraColumns = settings.customWorkOrderColumns ?? [];
+  // Built-in columns removed in Setup are no longer imported, so hide their old data too
+  const off = (header: string) => (settings.removedBuiltinColumns ?? []).includes(header);
   const extraChips = (wo: WorkOrder) =>
     extraColumns
       .filter((c) => wo.extra?.[c.appField])
@@ -351,7 +353,7 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
       toast(
         issues
           ? `Imported ${res.rows} work orders from ${file.name}. ${res.fileErrors.length ? `${res.fileErrors.length} missing column${res.fileErrors.length === 1 ? '' : 's'}, ` : ''}${res.problemRows} row${res.problemRows === 1 ? '' : 's'} with problems — see the Import report.`
-          : `Imported ${res.rows} work orders from ${file.name}. All 11 yellow columns found, no row problems.`,
+          : `Imported ${res.rows} work orders from ${file.name}. All configured columns found, no row problems.`,
         issues ? 'info' : 'ok',
       );
     } catch (err: any) {
@@ -363,7 +365,7 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
   };
 
   const handleExportCSV = () => {
-    const headers = [
+    const allHeaders = [
       'Line',
       'Work Order ID',
       'Description',
@@ -386,7 +388,7 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
       ...extraColumns.map((c) => c.excelHeader),
     ];
 
-    const rows = filteredWorkOrders.map((wo) => {
+    const allRows = filteredWorkOrders.map((wo) => {
       const live = workload.byWo[wo.id];
       return [
       wo.line,
@@ -412,6 +414,9 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
     ];
     });
 
+    const keep = allHeaders.map((h) => !off(h));
+    const headers = allHeaders.filter((_, i) => keep[i]);
+    const rows = allRows.map((r) => r.filter((_, i) => keep[i]));
     const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -449,7 +454,7 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
           TOP COMMAND HEADER (FULL WIDTH)
          ========================================================================= */}
       <div className="border-b border-[var(--line)] bg-[var(--surface)] px-4 sm:px-6 lg:px-10 py-4 sm:py-5 xl:sticky xl:top-0 z-20 shadow-sm">
-        <div className="w-full flex flex-col xl:flex-row xl:items-center justify-between gap-5">
+        <div className="w-full flex flex-col 2xl:flex-row 2xl:items-center justify-between gap-4">
           {/* Title Area */}
           <div className="flex items-center gap-4">
             <div className="hidden sm:flex w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500/20 via-blue-500/10 to-transparent border border-indigo-500/30 items-center justify-center text-indigo-400 shadow-sm shrink-0">
@@ -483,7 +488,7 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
           </div>
 
           {/* Action Buttons */}
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap 2xl:flex-nowrap 2xl:shrink-0">
             <input
               type="file"
               ref={fileInputRef}
@@ -495,7 +500,7 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
               <button
                 type="button"
                 onClick={() => setShowClearModal(true)}
-                className="h-11 px-4 rounded-xl text-[13px] font-bold border border-rose-500/35 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 hover:border-rose-500/50 transition-all shadow-sm active:scale-95 inline-flex items-center gap-2"
+                className="h-10 px-3.5 whitespace-nowrap shrink-0 rounded-xl text-[13px] font-bold border border-rose-500/35 bg-rose-500/10 text-rose-600 dark:text-rose-300 hover:bg-rose-500/20 hover:border-rose-500/50 transition-all shadow-sm active:scale-95 inline-flex items-center gap-2"
                 title="Return to initial work order import screen"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -509,7 +514,7 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="h-11 px-4 rounded-xl text-[13.5px] font-bold border border-[var(--line-strong)] bg-[var(--surface-2)] text-ink hover:bg-[var(--surface-3)] hover:border-[var(--line)] transition-all shadow-sm active:scale-95 inline-flex items-center gap-2"
+              className="h-10 px-3.5 whitespace-nowrap shrink-0 rounded-xl text-[13px] font-bold border border-[var(--line-strong)] bg-[var(--surface-2)] text-ink hover:bg-[var(--surface-3)] hover:border-[var(--line)] transition-all shadow-sm active:scale-95 inline-flex items-center gap-2"
             >
               {importing ? (
                 <span className="w-4 h-4 border-2 border-current/30 border-t-current rounded-full animate-spin" />
@@ -523,7 +528,7 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
             <button
               type="button"
               onClick={() => setShowYellowGuide(true)}
-              className="h-11 px-4 rounded-xl text-[13px] font-bold border border-amber-500/35 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 hover:border-amber-500/50 transition-all shadow-sm active:scale-95 inline-flex items-center gap-2"
+              className="h-10 px-3.5 whitespace-nowrap shrink-0 rounded-xl text-[13px] font-bold border border-amber-500/35 bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 hover:border-amber-500/50 transition-all shadow-sm active:scale-95 inline-flex items-center gap-2"
               title="View mandatory yellow columns mapping & data dictionary"
             >
               <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse" />
@@ -532,7 +537,7 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
 
             {workOrders.length > 0 && (
             <span
-              className="h-11 px-4 rounded-xl text-[13px] font-bold border border-emerald-500/35 bg-emerald-500/10 text-emerald-400 inline-flex items-center gap-2"
+              className="h-10 px-3.5 whitespace-nowrap shrink-0 rounded-xl text-[13px] font-bold border border-emerald-500/35 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 inline-flex items-center gap-2"
               title="Allocation is recalculated automatically whenever the Planner roster, people, shift codes or work orders change."
             >
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
@@ -544,7 +549,7 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
             <button
               type="button"
               onClick={handleExportCSV}
-              className="h-11 px-4 rounded-xl text-[13.5px] font-semibold border border-[var(--line)] bg-[var(--surface-2)]/60 text-ink-2 hover:text-ink hover:bg-[var(--surface-3)] transition-all shadow-sm active:scale-95 inline-flex items-center gap-2"
+              className="h-10 px-3.5 whitespace-nowrap shrink-0 rounded-xl text-[13px] font-semibold border border-[var(--line)] bg-[var(--surface-2)]/60 text-ink-2 hover:text-ink hover:bg-[var(--surface-3)] transition-all shadow-sm active:scale-95 inline-flex items-center gap-2"
               title="Download full CSV report of assigned engineers"
             >
               <Icons.Download />
@@ -561,7 +566,7 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
       {workOrders.length === 0 ? (
         <EmptyImport
           importing={importing}
-          columns={allWorkOrderColumns(extraColumns)}
+          columns={allWorkOrderColumns(extraColumns, settings.removedBuiltinColumns)}
           onPick={() => fileInputRef.current?.click()}
           onDrop={importFile}
           onGuide={() => setShowYellowGuide(true)}
@@ -1100,11 +1105,11 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-mono font-bold">
                       <span className="text-ink text-[13px]">{wo.workOrderId}</span>
-                      {wo.line && <span className="px-1.5 py-0.5 rounded bg-[var(--surface-3)] text-ink-2 border border-[var(--line)]">{wo.line}</span>}
+                      {wo.line && !off('Line') && <span className="px-1.5 py-0.5 rounded bg-[var(--surface-3)] text-ink-2 border border-[var(--line)]">{wo.line}</span>}
                       <span className="px-1.5 py-0.5 rounded bg-[var(--surface-3)] text-ink-2 border border-[var(--line)]">{wo.workType}</span>
-                      {wo.assetGroup && <span className="px-1.5 py-0.5 rounded bg-[var(--surface-3)] text-ink-3 border border-[var(--line)]">{wo.assetGroup}</span>}
+                      {wo.assetGroup && !off('Asset Group') && <span className="px-1.5 py-0.5 rounded bg-[var(--surface-3)] text-ink-3 border border-[var(--line)]">{wo.assetGroup}</span>}
                     </div>
-                    <p className="mt-1 text-[13px] font-semibold text-ink leading-snug">{wo.description || 'No description'}</p>
+                    {!off('Description') && <p className="mt-1 text-[13px] font-semibold text-ink leading-snug">{wo.description || 'No description'}</p>}
                     {extraChips(wo).length > 0 && <div className="mt-1 flex flex-wrap gap-1">{extraChips(wo)}</div>}
                   </div>
                   <span className={`shrink-0 px-2 py-0.5 rounded-full text-[11px] font-bold border ${pill[1]}`}>
@@ -1172,7 +1177,10 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
               <thead>
                 <tr className="bg-[var(--surface-2)] border-b border-[var(--line)] text-[11.5px] uppercase font-bold text-ink-3 tracking-wider select-none">
                   <th className="py-4 px-5">Work Order ID</th>
-                  <th className="py-4 px-5">Description</th>
+                  <th className="py-4 px-5">{off('Description') ? 'Details' : 'Description'}</th>
+                  {extraColumns.map((c) => (
+                    <th key={c.appField} className="py-4 px-5">{c.excelHeader}</th>
+                  ))}
                   <th className="py-4 px-5 text-center">Line</th>
                   <th className="py-4 px-5 text-center">Work Type</th>
                   <th className="py-4 px-5">Scheduled Date</th>
@@ -1211,22 +1219,24 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
                       {/* 2. Description (with Department tag) */}
                       <td className="py-4 px-5 max-w-md">
                         <div className="flex items-center gap-2 mb-1 flex-wrap">
-                          {[wo.department, wo.assetGroup].filter(Boolean).map((t) => (
+                          {[off('Div / Depart') ? '' : wo.department, off('Asset Group') ? '' : wo.assetGroup].filter(Boolean).map((t) => (
                             <span key={t} className="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-[var(--surface-3)] text-ink-3 border border-[var(--line)]">
                               {t}
                             </span>
                           ))}
-                          <span
-                            className="text-ink font-semibold text-[13.5px] leading-snug line-clamp-2"
-                            title={wo.description}
-                          >
-                            {wo.description || <em className="text-ink-3">No description</em>}
-                          </span>
+                          {!off('Description') && (
+                            <span
+                              className="text-ink font-semibold text-[13.5px] leading-snug line-clamp-2"
+                              title={wo.description}
+                            >
+                              {wo.description || <em className="text-ink-3">No description</em>}
+                            </span>
+                          )}
                         </div>
-                        {wo.location && (
+                        {wo.location && !off('Location') && (
                           <div className="text-[11.5px] font-mono text-ink-3" title="Location">📍 {wo.location}</div>
                         )}
-                        {extraChips(wo).length > 0 && <div className="mt-1 flex flex-wrap gap-1">{extraChips(wo)}</div>}
+                        
                         {live?.reason && (
                           <div className="text-[12px] text-red-400 mt-1 flex items-center gap-1 font-medium">
                             <Icons.AlertTriangle />
@@ -1239,6 +1249,13 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
                           </div>
                         )}
                       </td>
+
+                      {/* Columns added in Setup → Excel import columns */}
+                      {extraColumns.map((c) => (
+                        <td key={c.appField} className="py-4 px-5 text-[13px] text-ink-2 max-w-[200px]">
+                          {wo.extra?.[c.appField] || <span className="text-ink-3">—</span>}
+                        </td>
+                      ))}
 
                       {/* 3. Line */}
                       <td className="py-4 px-5 text-center font-mono whitespace-nowrap">
@@ -1278,7 +1295,7 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
                             {wo.scheduledStart ? formatDisplayDate(wo.scheduledStart) : 'No Scheduled Start'}
                           </span>
                         </div>
-                        {(wo.startNoEarlier || wo.finishNoLater) && (
+                        {(wo.startNoEarlier || wo.finishNoLater) && !off('Start No Earlier Than') && !off('Finish No Later Than') && (
                           <div className="mt-1 text-[11px] text-ink-3" title="Allowed window: Start No Earlier Than → Finish No Later Than">
                             Window {wo.startNoEarlier ? formatDisplayDate(wo.startNoEarlier) : '…'} → {wo.finishNoLater ? formatDisplayDate(wo.finishNoLater) : '…'}
                           </div>
@@ -1289,12 +1306,12 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
                             <div className="mt-1 flex flex-wrap gap-1 font-sans text-[10.5px] font-bold">
                               {w.outsideWindow && <span className="px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-400 border border-rose-500/30">Outside window</span>}
                               {w.pastFinish && <span className="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30">Past FNLT</span>}
-                              {w.slipDays !== null && w.slipDays !== 0 && (
+                              {!off('Target Start') && w.slipDays !== null && w.slipDays !== 0 && (
                                 <span className="px-1.5 py-0.5 rounded bg-[var(--surface-3)] text-ink-3 border border-[var(--line)]" title="Scheduled Start vs Target Start">
                                   Target {w.slipDays > 0 ? `+${w.slipDays}` : w.slipDays}d
                                 </span>
                               )}
-                              {w.ageDays !== null && (
+                              {!off('Reported Date') && w.ageDays !== null && (
                                 <span className="px-1.5 py-0.5 rounded bg-[var(--surface-3)] text-ink-3 border border-[var(--line)]" title="Days since Reported Date">
                                   Age {w.ageDays}d
                                 </span>
@@ -1462,7 +1479,7 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
 
                 {filteredWorkOrders.length === 0 && (
                   <tr>
-                    <td colSpan={10} className="py-20 text-center">
+                    <td colSpan={10 + extraColumns.length} className="py-20 text-center">
                       <div className="flex flex-col items-center justify-center gap-3">
                         <div className="w-14 h-14 rounded-2xl bg-[var(--surface-2)] flex items-center justify-center text-ink-3 border border-[var(--line)]">
                           <Icons.Clipboard />
@@ -1506,7 +1523,7 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
          ========================================================================= */}
       {showYellowGuide && (
         <YellowColumnsModal
-          columns={allWorkOrderColumns(extraColumns)}
+          columns={allWorkOrderColumns(extraColumns, settings.removedBuiltinColumns)}
           isOpen={showYellowGuide}
           onClose={() => setShowYellowGuide(false)}
         />

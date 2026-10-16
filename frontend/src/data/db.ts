@@ -63,6 +63,8 @@ export interface Settings {
    * the built-in yellow columns (see domain/workOrderColumns.ts).
    */
   customWorkOrderColumns?: WorkOrderColumn[];
+  /** excelHeader of built-in yellow columns removed in Setup — no longer read on import. */
+  removedBuiltinColumns?: string[];
   /** Report of the last work-order Excel import, shown on the Work Orders page. */
   lastWorkOrderImport?: WorkOrderImportReport;
   /** Timestamp of last db mutation for cloud synchronization. */

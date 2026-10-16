@@ -938,7 +938,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const uploadWorkOrders = useCallback(async (buffer: ArrayBuffer, fileName = 'work orders.xlsx') => {
     // Built-in yellow columns + any added in Setup → Excel import columns
-    const result = parseWorkOrdersWorkbook(buffer, allWorkOrderColumns((await getSettings()).customWorkOrderColumns));
+    const cfg = await getSettings();
+    const result = parseWorkOrdersWorkbook(buffer, allWorkOrderColumns(cfg.customWorkOrderColumns, cfg.removedBuiltinColumns));
     await db.transaction('rw', db.workOrders, async () => {
       await db.workOrders.clear();
       await db.workOrders.bulkPut(result.workOrders);

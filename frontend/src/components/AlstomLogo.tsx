@@ -7,6 +7,9 @@ import logoDark from '@/assets/alstom-logo-dark.png';
  * - Light theme: Navy blue letters (#011D70) + red swirl "O" (#DC3223)
  * - Dark theme: Crisp white letters + red swirl "O" (#DC3223)
  */
+/** The logo now includes the "mobility by nature" tagline, so it is drawn taller than the old wordmark-only image. */
+const SCALE = 1.7;
+
 export function AlstomLogo({
   height = 22,
   className = '',
@@ -20,7 +23,7 @@ export function AlstomLogo({
       <img
         src={logoLight}
         alt="ALSTOM"
-        style={{ height: `${height}px`, width: 'auto' }}
+        style={{ height: `${Math.round(height * SCALE)}px`, width: 'auto' }}
         className="block dark:hidden object-contain pointer-events-none"
         draggable={false}
       />
@@ -28,7 +31,7 @@ export function AlstomLogo({
       <img
         src={logoDark}
         alt="ALSTOM"
-        style={{ height: `${height}px`, width: 'auto' }}
+        style={{ height: `${Math.round(height * SCALE)}px`, width: 'auto' }}
         className="hidden dark:block object-contain pointer-events-none"
         draggable={false}
       />

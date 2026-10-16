@@ -145,3 +145,23 @@ describe('columns added in Setup → Excel import columns', () => {
     expect(allWorkOrderColumns([dup])).toHaveLength(WORK_ORDER_COLUMNS.length);
   });
 });
+
+describe('columns removed in Setup are not imported; added columns are read by header name', () => {
+  const hello: WorkOrderColumn = { excelHeader: 'hello', appField: 'hello', required: true, type: 'text', usedFor: 'test' };
+  const cols = allWorkOrderColumns([hello], ['Description', 'Target Start']);
+  const res = parseWorkOrdersWorkbook(workbook([[...HEADER, 'Hello'], [...row(good), 'hi there']]), cols);
+  const [wo] = res.workOrders;
+
+  it('does not read a removed column even though it is in the file', () => {
+    expect(wo.description).toBe('');
+    expect(wo.targetStart).toBeUndefined();
+    expect(res.fileErrors).toEqual([]);
+  });
+  it('reads the added column (case-insensitive header) into extra', () => {
+    expect(wo.extra).toEqual({ hello: 'hi there' });
+  });
+  it('reports the added mandatory column when the file lacks it', () => {
+    const r2 = parseWorkOrdersWorkbook(workbook([HEADER, row(good)]), cols);
+    expect(r2.fileErrors).toContain('Column "hello" not found in the file');
+  });
+});

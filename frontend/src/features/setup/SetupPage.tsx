@@ -1177,6 +1177,9 @@ function ExcelColumnsSection() {
   const { settings, updateSettings } = useStore();
   const toast = useToast();
   const custom = settings.customWorkOrderColumns ?? [];
+  const removed = settings.removedBuiltinColumns ?? [];
+  const activeBuiltIn = WORK_ORDER_COLUMNS.filter((c) => !removed.includes(c.excelHeader));
+  const removedBuiltIn = WORK_ORDER_COLUMNS.filter((c) => removed.includes(c.excelHeader));
   const [header, setHeader] = useState('');
   const [required, setRequired] = useState(true);
   const [type, setType] = useState<ColumnType>('text');
@@ -1185,7 +1188,7 @@ function ExcelColumnsSection() {
   const add = () => {
     const h = header.trim();
     if (!h) return toast('Type the column header exactly as it is in Excel.', 'error');
-    const taken = allWorkOrderColumns(custom).find((c) =>
+    const taken = allWorkOrderColumns(custom, removed).find((c) =>
       [c.excelHeader, ...(c.aliases ?? [])].some((x) => headerKey(x) === headerKey(h)),
     );
     if (taken) return toast(`"${h}" is already read (as "${taken.excelHeader}").`, 'error');
@@ -1209,6 +1212,15 @@ function ExcelColumnsSection() {
     toast('Column removed. Import again to drop it from the work orders.', 'ok');
   };
 
+  const removeBuiltIn = (c: WorkOrderColumn) => {
+    void updateSettings({ removedBuiltinColumns: [...removed, c.excelHeader] });
+    toast(`"${c.excelHeader}" removed. The next import will not read it.`, 'ok');
+  };
+  const restoreBuiltIn = (c: WorkOrderColumn) => {
+    void updateSettings({ removedBuiltinColumns: removed.filter((h) => h !== c.excelHeader) });
+    toast(`"${c.excelHeader}" restored. Import again to read it.`, 'ok');
+  };
+
   const TYPES: { id: ColumnType; label: string }[] = [
     { id: 'text', label: 'Text' },
     { id: 'number', label: 'Number' },
@@ -1225,19 +1237,66 @@ function ExcelColumnsSection() {
         {/* Built-in yellow columns */}
         <div>
           <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-ink-3">
-            Built-in yellow columns · {WORK_ORDER_COLUMNS.length}
+            Yellow columns (read on import) · {activeBuiltIn.length + custom.length}
           </div>
           <div className="flex flex-wrap gap-1.5">
-            {WORK_ORDER_COLUMNS.map((c) => (
+            {activeBuiltIn.map((c) => (
               <span
                 key={c.excelHeader}
                 title={c.usedFor}
-                className="px-2 py-1 rounded-lg text-[12px] font-semibold bg-amber-500/15 text-amber-600 dark:text-amber-300 border border-amber-500/30"
+                className="inline-flex items-center gap-1 pl-2 pr-1 py-1 rounded-lg text-[12px] font-semibold bg-amber-500/15 text-amber-600 dark:text-amber-300 border border-amber-500/30"
               >
                 {c.excelHeader}
+                <button
+                  type="button"
+                  onClick={() => removeBuiltIn(c)}
+                  aria-label={`Remove ${c.excelHeader}`}
+                  title="Remove — stop importing this column"
+                  className="w-4 h-4 leading-none rounded hover:bg-amber-500/30"
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+            {custom.map((c, i) => (
+              <span
+                key={`custom-${c.excelHeader}`}
+                title={c.usedFor}
+                className="inline-flex items-center gap-1 pl-2 pr-1 py-1 rounded-lg text-[12px] font-semibold bg-amber-500/15 text-amber-600 dark:text-amber-300 border border-amber-500/30"
+              >
+                {c.excelHeader}
+                <button
+                  type="button"
+                  onClick={() => remove(i)}
+                  aria-label={`Remove ${c.excelHeader}`}
+                  title="Remove this added column"
+                  className="w-4 h-4 leading-none rounded hover:bg-amber-500/30"
+                >
+                  ×
+                </button>
               </span>
             ))}
           </div>
+          {removedBuiltIn.length > 0 && (
+            <div className="mt-3">
+              <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-ink-3">
+                Removed (not imported) · {removedBuiltIn.length}
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {removedBuiltIn.map((c) => (
+                  <button
+                    key={c.excelHeader}
+                    type="button"
+                    onClick={() => restoreBuiltIn(c)}
+                    title="Click to restore"
+                    className="px-2 py-1 rounded-lg text-[12px] font-semibold text-ink-3 border border-dashed border-[var(--line)] line-through hover:text-ink hover:no-underline"
+                  >
+                    + {c.excelHeader}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Added columns */}

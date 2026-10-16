@@ -3,6 +3,7 @@ import XLSX from 'xlsx-js-style';
 import { exportColors } from '@/app/tones';
 import { MONTH_ABBR, buildColumns, daysInMonth } from '@/domain/calendar';
 import { DEFAULT_STANDARD_HOURS, employeeHours } from '@/domain/hours';
+import { isLeaderEmployee } from '@/domain/rotation';
 import { OFF, type Employee, type Line, type RosterMonth, type SheetLayout, type ShiftCode } from '@/domain/types';
 
 type Cell = XLSX.CellObject & { s?: Record<string, unknown> };
@@ -137,7 +138,7 @@ export function buildWorkbook({
     const r = firstEmpRow + i;
     put(r, 0, {
       t: 's',
-      v: employee.name,
+      v: isLeaderEmployee(employee) ? `${employee.name} (Leader)` : employee.name,
       s: { font: { sz: 10, bold: true }, alignment: { horizontal: 'left' }, border: BORDER },
     });
     put(r, 1, {
@@ -471,7 +472,7 @@ export function buildOperationalWorkbook({
       const overrides = (roster.overrides?.[emp.id] ?? {}) as Record<number, string>;
       const rowBg = colors.row;
 
-      set(rowIdx, 0, oc(emp.name, 's', mkCellStyle(rowBg, true, 'left')));
+      set(rowIdx, 0, oc(isLeaderEmployee(emp) ? `${emp.name} (Leader)` : emp.name, 's', mkCellStyle(rowBg, true, 'left')));
       set(rowIdx, 1, oc(emp.role ?? '', 's', mkCellStyle(rowBg, false, 'center')));
       set(rowIdx, 2, oc(shiftLabel(emp.defaultShift), 's', mkCellStyle(rowBg, false, 'center')));
 
