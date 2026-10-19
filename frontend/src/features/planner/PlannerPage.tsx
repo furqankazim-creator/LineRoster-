@@ -36,6 +36,10 @@ export function PlannerPage() {
         if (e.shiftKey) redo();
         else undo();
       }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        redo();
+      }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
         void saveRoster()
@@ -61,7 +65,12 @@ export function PlannerPage() {
           insightsOpen={insightsOpen}
           toggleInsights={() => setInsightsOpen((v) => !v)}
         />
-        <RosterGrid brush={brush} revealKey={revealKey} jumpTo={jumpTo} />
+        <RosterGrid
+          brush={brush}
+          revealKey={revealKey}
+          jumpTo={jumpTo}
+          onOpenImport={() => setImportOpen(true)}
+        />
       </div>
 
       <InsightsDrawer
@@ -80,7 +89,7 @@ export function PlannerPage() {
         open={importOpen}
         onClose={() => setImportOpen(false)}
         onDone={(n) => {
-          toast(`Imported ${n} people from Excel.`, 'ok');
+          toast(`Imported ${n} people from Excel. Auto-saved!`, 'ok');
           setRevealKey((k) => k + 1);
         }}
       />

@@ -14,7 +14,7 @@ import {
   type ColumnType, type WorkOrderColumn,
 } from '@/domain/workOrderColumns';
 import { useAuth } from '@/features/auth/authStore';
-import type { AssignedPasscode, UserRole } from '@/features/auth/types';
+import type { AssignedPasscode, UserRole, WorkspaceMode } from '@/features/auth/types';
 
 export function SetupPage() {
   const { session } = useAuth();
@@ -341,8 +341,19 @@ export function SetupPage() {
                     if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
                       const buf = await file.arrayBuffer();
                       const { importBackupWorkbook } = await import('@/io/importXlsx');
+                      const { getFullBackupData, getActiveDbName } = await import('@/data/db');
                       const parsed = importBackupWorkbook(buf);
                       await importBackupData(parsed);
+                      if (getActiveDbName() === 'shiftline') {
+                        try {
+                          const backup = await getFullBackupData();
+                          await fetch('/api/collab/db', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(backup),
+                          });
+                        } catch {}
+                      }
                       toast('Excel backup restored successfully! Refreshing...', 'ok');
                     } else {
                       const text = await file.text();
@@ -720,6 +731,8 @@ function SecuritySettingsSection({ employees = [] }: { employees?: Employee[] })
   const [draftName, setDraftName] = useState('');
   const [draftCode, setDraftCode] = useState('');
   const [draftRole, setDraftRole] = useState<UserRole>('collaborator');
+  const [draftWorkspaceMode, setDraftWorkspaceMode] = useState<WorkspaceMode>('isolated');
+  const [draftAllowedLine, setDraftAllowedLine] = useState<string>('all');
   const [draftNote, setDraftNote] = useState('');
 
   useEffect(() => {
@@ -795,12 +808,16 @@ Open the link above (your name and password will be pre-filled) to view the sche
       createdAt: Date.now(),
       status: 'active',
       notes: draftNote.trim() || undefined,
+      workspaceMode: draftWorkspaceMode,
+      allowedLineId: draftAllowedLine,
     };
 
     const nextList = [newEntry, ...assignedList];
     setAssignedList(nextList);
     updateSecuritySettings({ assignedPasscodes: nextList });
     setNewModalOpen(false);
+    setDraftWorkspaceMode('isolated');
+    setDraftAllowedLine('all');
     toast(`Created and assigned link for ${name}!`, 'ok');
   };
 
@@ -913,6 +930,19 @@ Open the link above (your name and password will be pre-filled) to view the sche
                         </span>
                         <span className="px-1.5 py-0.5 rounded text-[9.5px] uppercase font-black tracking-wide bg-[var(--surface-3)] text-ink-2 border border-[var(--line)]">
                           {item.role}
+                        </span>
+                        <span
+                          className={cx(
+                            'px-1.5 py-0.5 rounded text-[9.5px] uppercase font-black tracking-wide border',
+                            item.workspaceMode === 'isolated'
+                              ? 'bg-amber-500/15 text-amber-500 border-amber-500/30'
+                              : 'bg-blue-500/15 text-blue-500 border-blue-500/30',
+                          )}
+                        >
+                          {item.workspaceMode === 'isolated' ? 'Clean Slate' : 'Live Mirror'}
+                        </span>
+                        <span className="px-1.5 py-0.5 rounded text-[9.5px] uppercase font-black tracking-wide bg-purple-500/15 text-purple-500 border border-purple-500/30">
+                          {item.allowedLineId === 'line5' ? 'Line 5' : item.allowedLineId === 'line6' ? 'Line 4&6' : 'All Lines'}
                         </span>
                         {isOnline ? (
                           <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 text-[10.5px] font-bold border border-emerald-500/25">
@@ -1141,6 +1171,23 @@ Open the link above (your name and password will be pre-filled) to view the sche
               <Select value={draftRole} onChange={(e) => setDraftRole(e.target.value as UserRole)}>
                 <option value="collaborator">Collaborator (Can view &amp; edit roster shifts)</option>
                 <option value="viewer">Viewer (Read-only access)</option>
+              </Select>
+            </Field>
+
+            {/* Workspace Sharing Mode */}
+            <Field label="Supervisor Screen &amp; Workspace Mode" hint="Clean slate (starts empty to import scratch) or live mirror of supervisor screen.">
+              <Select value={draftWorkspaceMode} onChange={(e) => setDraftWorkspaceMode(e.target.value as WorkspaceMode)}>
+                <option value="isolated">Clean Slate — Starts with 0 rosters and 0 work orders (Private scratch)</option>
+                <option value="shared">Mirror My Live Screen — Real-time sync with supervisor screen</option>
+              </Select>
+            </Field>
+
+            {/* Line Scope */}
+            <Field label="Line Restriction" hint="Lock this link to a specific line or allow all lines.">
+              <Select value={draftAllowedLine} onChange={(e) => setDraftAllowedLine(e.target.value)}>
+                <option value="all">All Lines (Line 5, Line 4&amp;6, etc.)</option>
+                <option value="line5">Line 5 Only</option>
+                <option value="line6">Line 4 &amp; 6 Only</option>
               </Select>
             </Field>
 

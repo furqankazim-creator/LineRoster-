@@ -36,6 +36,55 @@ export const MONTH_ABBR = [
   'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC',
 ];
 
+/** Parses a sheet name or title like "SLV_Line 4&6_Roster_SEP_2026", "Line 5_SEP-2026", or "SEPTEMBER 2026 RST L5" into its parts. */
+export function parseSheetMeta(title: string): { lineName: string | null; year: number | null; month: number | null } {
+  // 1. Line match - prioritize composite line labels like "Line 4 & 6", "Line 4&6", "Line4&6", "L4&6", "L4 & 6"
+  let lineName: string | null = null;
+  if (/(?:Line|L)\s*4\s*(?:&|and|\+)?\s*6/i.test(title)) {
+    lineName = 'Line 4 & 6';
+  } else {
+    const lineMatch = title.match(/(?:Line|L)\s*(\d+)/i);
+    if (lineMatch) {
+      lineName = `Line ${lineMatch[1]}`;
+    }
+  }
+
+  // 2. Month and year match
+  let year: number | null = null;
+  let month: number | null = null;
+
+  // Pattern: Month word/abbr followed by year (e.g. "SEP-2026", "September 2026", "June_ 2026", "MAY 2026", "AUG_2026")
+  const monthYearMatch = title.match(/(?:^|[^A-Za-z])([A-Za-z]{3,9})[-_ ]*(\d{4})/i);
+  if (monthYearMatch) {
+    const candidateMonth = monthYearMatch[1].slice(0, 3).toUpperCase();
+    const idx = MONTH_ABBR.indexOf(candidateMonth);
+    if (idx >= 0) {
+      month = idx + 1;
+      year = Number(monthYearMatch[2]);
+    }
+  }
+
+  // If year not yet found, look for any 4-digit year 2000-2099
+  if (!year) {
+    const yr = title.match(/\b(20\d{2})\b/);
+    if (yr) year = Number(yr[1]);
+  }
+
+  // If month not yet found, search for month abbreviation anywhere
+  if (!month) {
+    for (let i = 0; i < MONTH_ABBR.length; i++) {
+      const abbr = MONTH_ABBR[i];
+      const re = new RegExp(`(?:^|[^A-Za-z])${abbr}(?:[A-Za-z]*)(?:$|[^A-Za-z])`, 'i');
+      if (re.test(title)) {
+        month = i + 1;
+        break;
+      }
+    }
+  }
+
+  return { lineName, year, month };
+}
+
 export function monthLabel(year: number, month: number): string {
   return `${MONTH_NAMES[month - 1]} ${year}`;
 }

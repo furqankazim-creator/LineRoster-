@@ -35,6 +35,16 @@ export type FontFamily =
   | 'system'
   | 'sans';
 
+export interface ImportedSheetRecord {
+  sheetName: string;
+  lineId: string;
+  year: number;
+  month: number;
+  importedAt: number;
+  fileName?: string;
+  employeeCount?: number;
+}
+
 export interface Settings {
   key: 'app';
   theme: 'dark' | 'light';
@@ -67,6 +77,8 @@ export interface Settings {
   removedBuiltinColumns?: string[];
   /** Report of the last work-order Excel import, shown on the Work Orders page. */
   lastWorkOrderImport?: WorkOrderImportReport;
+  /** History of sheets imported via Excel import modal */
+  importedSheets?: Record<string, ImportedSheetRecord>;
   /** Timestamp of last db mutation for cloud synchronization. */
   updatedAt?: number;
 }
@@ -127,6 +139,7 @@ export const DEFAULT_SETTINGS: Settings = {
   fontSize: 'normal',
   fontFamily: 'default',
   lineMonths: {},
+  importedSheets: {},
 };
 
 /**
@@ -190,8 +203,8 @@ class RosterDB extends Dexie {
   /** Named allocations audit log */
   allocations!: EntityTable<AllocationRecord, 'id'>;
 
-  constructor() {
-    super('shiftline');
+  constructor(name: string = 'shiftline') {
+    super(name);
     this.version(1).stores({
       lines: 'id, order',
       employees: 'id, lineId, order',
@@ -295,17 +308,195 @@ class RosterDB extends Dexie {
   }
 }
 
-export const db = new RosterDB();
+let activeDbName = 'shiftline';
+let currentDb = new RosterDB('shiftline');
+
+export function getActiveDbName(): string {
+  return activeDbName;
+}
+
+export function setActiveDatabase(name: string = 'shiftline'): RosterDB {
+  if (name !== activeDbName) {
+    activeDbName = name;
+    currentDb = new RosterDB(name);
+  }
+  return currentDb;
+}
+
+export const db: RosterDB = new Proxy({} as RosterDB, {
+  get(_target, prop, receiver) {
+    const val = Reflect.get(currentDb, prop, receiver);
+    if (typeof val === 'function') {
+      return val.bind(currentDb);
+    }
+    return val;
+  },
+});
+
+export interface SeedOptions {
+  isolated?: boolean;
+  mirror?: boolean;
+  allowedLineId?: string;
+}
 
 /**
- * Loads the client's real September roster on first run.
- *
- * Opening onto his own data rather than an empty grid is deliberate — he can
- * see the tool working against something he recognises before entering
- * anything himself.
+ * Loads the initial database on first run.
+ * For isolated collaborators, it initializes a clean workspace with 0 employees and 0 work orders.
+ * For live mirror collaborators, it takes a private snapshot of the supervisor's screen so they see the exact roster and work orders, but edits remain 100% private.
  */
-export async function ensureSeeded(): Promise<void> {
+export async function ensureSeeded(options?: SeedOptions): Promise<void> {
   const existing = await db.settings.get('app');
+
+  // If this session is an isolated scratch workspace:
+  if (options?.isolated) {
+    const targetLine = options.allowedLineId && options.allowedLineId !== 'all' ? options.allowedLineId : 'line5';
+
+    // In a scratch workspace, if the user hasn't explicitly imported an Excel roster sheet yet,
+    // employees, rosters, and leave MUST be completely empty (0 people).
+    const hasImportedSheets = existing?.importedSheets && Object.keys(existing.importedSheets).length > 0;
+    if (!hasImportedSheets) {
+      await db.transaction('rw', [db.employees, db.rosters, db.leave], async () => {
+        await db.employees.clear();
+        await db.rosters.clear();
+        await db.leave.clear();
+      });
+    }
+
+    // In a scratch workspace, if the user hasn't explicitly imported work orders yet,
+    // work orders and allocations MUST be completely empty (0 work orders, 0 shortfalls).
+    if (!existing?.lastWorkOrderImport) {
+      await db.transaction('rw', [db.workOrders, db.allocations], async () => {
+        await db.workOrders.clear();
+        await db.allocations.clear();
+      });
+    }
+
+    if (!existing?.seeded) {
+      await db.transaction(
+        'rw',
+        [db.lines, db.shiftCodes, db.settings, db.resourceRequirements],
+        async () => {
+          await db.lines.bulkPut(SEED_LINES);
+          await db.shiftCodes.bulkPut(SEED_CODES.map((c) => ({ ...c, key: codeKey(c.id) })));
+          for (const line of SEED_LINES) {
+            await db.shiftCodes.bulkPut(
+              SEED_CODES.map((c) => ({ ...c, scope: line.id, key: codeKey(c.id, line.id) })),
+            );
+          }
+          await db.resourceRequirements.bulkPut(SEED_RESOURCE_REQUIREMENTS);
+          await db.settings.put({
+            ...DEFAULT_SETTINGS,
+            activeLineId: targetLine,
+            seeded: true,
+          });
+        },
+      );
+    }
+    return;
+  }
+
+  // If this session is a Live Mirror collaborator workspace:
+  if (options?.mirror) {
+    if (existing?.seeded) {
+      if (options.allowedLineId && options.allowedLineId !== 'all' && existing.activeLineId !== options.allowedLineId) {
+        await db.settings.put({ ...existing, activeLineId: options.allowedLineId });
+      }
+      return;
+    }
+
+    // On first open, snapshot supervisor's current screen:
+    let cloned = false;
+    try {
+      const masterDb = new RosterDB('shiftline');
+      const mLines = await masterDb.lines.toArray();
+      const mEmployees = await masterDb.employees.toArray();
+      if (mLines.length > 0 || mEmployees.length > 0) {
+        const [mCodes, mLeave, mRosters, mSettings, mWos, mReqs, mAllocs, mLayouts, mMonthCodes] = await Promise.all([
+          masterDb.shiftCodes.toArray(),
+          masterDb.leave.toArray(),
+          masterDb.rosters.toArray(),
+          masterDb.settings.get('app'),
+          masterDb.workOrders.toArray(),
+          masterDb.resourceRequirements.toArray(),
+          masterDb.allocations.toArray(),
+          masterDb.layouts.toArray(),
+          masterDb.monthCodes.toArray(),
+        ]);
+
+        await db.transaction(
+          'rw',
+          [db.lines, db.employees, db.shiftCodes, db.leave, db.rosters, db.settings, db.workOrders, db.resourceRequirements, db.allocations, db.layouts, db.monthCodes],
+          async () => {
+            if (mLines.length) await db.lines.bulkPut(mLines);
+            if (mEmployees.length) await db.employees.bulkPut(mEmployees);
+            if (mCodes.length) await db.shiftCodes.bulkPut(mCodes);
+            if (mLeave.length) await db.leave.bulkPut(mLeave);
+            if (mRosters.length) await db.rosters.bulkPut(mRosters);
+            if (mWos.length) await db.workOrders.bulkPut(mWos);
+            if (mReqs.length) await db.resourceRequirements.bulkPut(mReqs);
+            if (mAllocs.length) await db.allocations.bulkPut(mAllocs);
+            if (mLayouts.length) await db.layouts.bulkPut(mLayouts);
+            if (mMonthCodes.length) await db.monthCodes.bulkPut(mMonthCodes);
+
+            const targetLine = options.allowedLineId && options.allowedLineId !== 'all'
+              ? options.allowedLineId
+              : (mSettings?.activeLineId || 'line5');
+
+            await db.settings.put({
+              ...DEFAULT_SETTINGS,
+              ...mSettings,
+              activeLineId: targetLine,
+              seeded: true,
+            });
+          },
+        );
+        cloned = true;
+      }
+    } catch {
+      /* ignore and fallback */
+    }
+
+    // If local browser masterDb had no data, try server backup:
+    if (!cloned && typeof window !== 'undefined' && typeof fetch !== 'undefined') {
+      try {
+        const res = await fetch('/api/collab/db');
+        if (res.ok) {
+          const json = await res.json();
+          if (json.ok && json.data && Array.isArray(json.data.lines) && json.data.lines.length > 0) {
+            await importBackupData(json.data);
+            if (options.allowedLineId && options.allowedLineId !== 'all') {
+              const s = await db.settings.get('app');
+              await db.settings.put({ ...DEFAULT_SETTINGS, ...s, activeLineId: options.allowedLineId, seeded: true });
+            }
+            cloned = true;
+          }
+        }
+      } catch {}
+    }
+
+    // Fallback to default seed if neither was available:
+    if (!cloned) {
+      const targetLine = options.allowedLineId && options.allowedLineId !== 'all' ? options.allowedLineId : 'line5';
+      await db.transaction('rw', [db.lines, db.employees, db.shiftCodes, db.leave, db.settings, db.resourceRequirements], async () => {
+        await db.lines.bulkPut(SEED_LINES);
+        await db.shiftCodes.bulkPut(SEED_CODES.map((c) => ({ ...c, key: codeKey(c.id) })));
+        for (const line of SEED_LINES) {
+          await db.shiftCodes.bulkPut(
+            SEED_CODES.map((c) => ({ ...c, scope: line.id, key: codeKey(c.id, line.id) })),
+          );
+        }
+        await db.employees.bulkPut(SEED_EMPLOYEES);
+        await db.leave.bulkPut(SEED_LEAVE);
+        await db.resourceRequirements.bulkPut(SEED_RESOURCE_REQUIREMENTS);
+        await db.settings.put({
+          ...DEFAULT_SETTINGS,
+          activeLineId: targetLine,
+          seeded: true,
+        });
+      });
+    }
+    return;
+  }
 
   // 1. Try to fetch the master database from the server (so all browsers / Gmail accounts sync together)
   let serverData: any = null;
@@ -332,21 +523,23 @@ export async function ensureSeeded(): Promise<void> {
       await importBackupData(serverData);
       return;
     } else if (localUpdatedAt > serverUpdatedAt) {
-      // Local changes are newer: push to server
-      try {
-        const backup = await getFullBackupData();
-        await fetch('/api/collab/db', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(backup),
-        });
-      } catch {}
+      // Local changes are newer: push to server if supervisor
+      if (getActiveDbName() === 'shiftline') {
+        try {
+          const backup = await getFullBackupData();
+          await fetch('/api/collab/db', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(backup),
+          });
+        } catch {}
+      }
       return;
     }
   }
 
-  // 3. If local already has data (e.g. supervisor already deleted Line 4 & 6) and server is empty:
-  if (existing?.seeded && !serverData && typeof window !== 'undefined' && typeof fetch !== 'undefined') {
+  // 3. If local already has data and server is empty:
+  if (existing?.seeded && !serverData && getActiveDbName() === 'shiftline' && typeof window !== 'undefined' && typeof fetch !== 'undefined') {
     try {
       const backup = await getFullBackupData();
       await fetch('/api/collab/db', {
@@ -415,8 +608,8 @@ export async function ensureSeeded(): Promise<void> {
     });
   });
 
-  // Push newly seeded data to server so it is ready for other sessions:
-  if (typeof window !== 'undefined' && typeof fetch !== 'undefined') {
+  // Push newly seeded data to server so it is ready for other sessions (supervisor only):
+  if (getActiveDbName() === 'shiftline' && typeof window !== 'undefined' && typeof fetch !== 'undefined') {
     try {
       const backup = await getFullBackupData();
       await fetch('/api/collab/db', {
@@ -442,7 +635,7 @@ export async function patchSettings(patch: Partial<Settings>): Promise<void> {
     saveStoredTheme(patch.theme);
   }
   const current = await getSettings();
-  const merged: any = { ...current, ...patch, key: 'app' };
+  const merged: any = { ...current, ...patch, updatedAt: Date.now(), key: 'app' };
   for (const k of Object.keys(merged)) {
     if (merged[k] === undefined) {
       delete merged[k];
@@ -452,7 +645,7 @@ export async function patchSettings(patch: Partial<Settings>): Promise<void> {
 }
 
 export async function getFullBackupData() {
-  const [lines, employees, codes, leave, rosters, settings, workOrders, resourceRequirements, allocations] = await Promise.all([
+  const [lines, employees, codes, leave, rosters, settings, workOrders, resourceRequirements, allocations, monthCodes, layouts] = await Promise.all([
     db.lines.toArray(),
     db.employees.toArray(),
     db.shiftCodes.toArray(),
@@ -462,8 +655,24 @@ export async function getFullBackupData() {
     db.workOrders.toArray(),
     db.resourceRequirements.toArray(),
     db.allocations.toArray(),
+    db.monthCodes.toArray(),
+    db.layouts.toArray(),
   ]);
-  return { lines, employees, codes, leave, rosters, settings, workOrders, resourceRequirements, allocations };
+  const updatedAt = Date.now();
+  return {
+    lines,
+    employees,
+    codes,
+    leave,
+    rosters,
+    settings: { ...settings, updatedAt },
+    workOrders,
+    resourceRequirements,
+    allocations,
+    monthCodes,
+    layouts,
+    updatedAt,
+  };
 }
 
 /** Full backup — everything the app knows, as one JSON file. */
@@ -482,7 +691,7 @@ export async function importBackupData(data: any): Promise<void> {
   }
   await db.transaction(
     'rw',
-    [db.lines, db.employees, db.shiftCodes, db.leave, db.rosters, db.settings, db.workOrders, db.resourceRequirements, db.allocations],
+    [db.lines, db.employees, db.shiftCodes, db.leave, db.rosters, db.settings, db.workOrders, db.resourceRequirements, db.allocations, db.monthCodes, db.layouts],
     async () => {
       await Promise.all([
         db.lines.clear(), db.employees.clear(), db.shiftCodes.clear(),
@@ -499,11 +708,24 @@ export async function importBackupData(data: any): Promise<void> {
       if (Array.isArray(data.workOrders)) await db.workOrders.bulkPut(data.workOrders);
       if (Array.isArray(data.resourceRequirements)) await db.resourceRequirements.bulkPut(data.resourceRequirements);
       if (Array.isArray(data.allocations)) await db.allocations.bulkPut(data.allocations);
+      if (Array.isArray(data.monthCodes)) {
+        await db.monthCodes.clear();
+        await db.monthCodes.bulkPut(data.monthCodes);
+      }
+      if (Array.isArray(data.layouts)) {
+        await db.layouts.clear();
+        await db.layouts.bulkPut(data.layouts);
+      }
       if (data.settings) {
         const localTheme = getStoredTheme();
+        const currentLocal = await db.settings.get('app');
         await db.settings.put({
           ...DEFAULT_SETTINGS,
           ...data.settings,
+          activeLineId: currentLocal?.activeLineId || data.settings.activeLineId || DEFAULT_SETTINGS.activeLineId,
+          activeYear: currentLocal?.activeYear || data.settings.activeYear || DEFAULT_SETTINGS.activeYear,
+          activeMonth: currentLocal?.activeMonth || data.settings.activeMonth || DEFAULT_SETTINGS.activeMonth,
+          updatedAt: data.updatedAt || data.settings.updatedAt || Date.now(),
           theme: localTheme,
           key: 'app',
           seeded: true,
@@ -521,6 +743,16 @@ export async function importBackup(json: string): Promise<void> {
     throw new Error('Selected file is not valid JSON. Please upload a valid ShiftLine .json backup.');
   }
   await importBackupData(data);
+  if (getActiveDbName() === 'shiftline' && typeof window !== 'undefined' && typeof fetch !== 'undefined') {
+    try {
+      const backup = await getFullBackupData();
+      await fetch('/api/collab/db', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(backup),
+      });
+    } catch {}
+  }
 }
 
 /** Wipes everything and reloads the shipped September demo. */

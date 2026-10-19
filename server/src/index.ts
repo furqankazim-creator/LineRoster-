@@ -7,9 +7,10 @@ import { config } from './config.ts';
 import { aiRouter } from './routes/ai.ts';
 import { auditRouter } from './routes/audit.ts';
 import { authRouter } from './routes/auth.ts';
+import { collabRouter, seedCollabInMongo } from './routes/collab.ts';
 import { codesRouter, employeesRouter, leaveRouter, linesRouter, settingsRouter } from './routes/data.ts';
 import { rostersRouter } from './routes/rosters.ts';
-import { syncRouter } from './routes/sync.ts';
+import { seedMongoIfEmpty, syncRouter } from './routes/sync.ts';
 
 const app = express();
 app.use(cors({ origin: config.corsOrigins }));
@@ -17,6 +18,7 @@ app.use(express.json({ limit: '10mb' }));
 
 app.get('/health', (_req, res) => res.json({ ok: true, ai: Boolean(config.groqApiKey), aiPublic: config.aiPublic }));
 
+app.use('/api/collab', collabRouter);
 app.use('/auth', authRouter);
 app.use('/lines', linesRouter);
 app.use('/codes', codesRouter);
@@ -34,9 +36,21 @@ app.use((err: unknown, _req: express.Request, res: express.Response, _next: expr
 });
 
 async function main() {
-  await mongoose.connect(config.mongoUri);
+  try {
+    await mongoose.connect(config.mongoUri, { serverSelectionTimeoutMS: 4000 });
+  } catch (err: any) {
+    if (!config.mongoUri.includes('127.0.0.1') && !config.mongoUri.includes('localhost')) {
+      console.warn(`\n⚠️  Could not connect to remote MongoDB cluster: ${err?.message}`);
+      console.warn('🔄 Falling back to local persistent MongoDB at mongodb://127.0.0.1:27018/shiftline...\n');
+      await mongoose.connect('mongodb://127.0.0.1:27018/shiftline');
+    } else {
+      throw err;
+    }
+  }
   console.log('MongoDB connected');
   await seedAdmin();
+  await seedCollabInMongo();
+  await seedMongoIfEmpty();
   const server = app.listen(config.port, '0.0.0.0', () => console.log(`ShiftLine API on http://localhost:${config.port}`));
   server.on('error', (err: NodeJS.ErrnoException) => {
     if (err.code === 'EADDRINUSE') {

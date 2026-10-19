@@ -8,7 +8,7 @@ import React, {
   useState,
 } from 'react';
 
-import { importBackupData } from '@/data/db';
+import { importBackupData, setActiveDatabase } from '@/data/db';
 import { useToast } from '@/components/ui';
 
 import { playNotificationChime } from './sound';
@@ -39,6 +39,8 @@ export const DEFAULT_ASSIGNED_PASSCODES: AssignedPasscode[] = [
     createdAt: Date.now() - 86400000 * 2,
     status: 'active',
     notes: 'IT Operations Partner direct link',
+    workspaceMode: 'shared',
+    allowedLineId: 'all',
   },
   {
     id: 'assign-arif',
@@ -48,6 +50,8 @@ export const DEFAULT_ASSIGNED_PASSCODES: AssignedPasscode[] = [
     createdAt: Date.now() - 86400000,
     status: 'active',
     notes: 'Team Collaborator direct link',
+    workspaceMode: 'shared',
+    allowedLineId: 'all',
   },
   {
     id: 'assign-latif',
@@ -57,6 +61,8 @@ export const DEFAULT_ASSIGNED_PASSCODES: AssignedPasscode[] = [
     createdAt: Date.now() - 3600000 * 6,
     status: 'active',
     notes: 'Operations Line Staff direct link',
+    workspaceMode: 'isolated',
+    allowedLineId: 'all',
   },
 ];
 
@@ -81,9 +87,15 @@ export function normalizeSecuritySettings(raw: Partial<SecuritySettings> | null 
   return {
     ...DEFAULT_SETTINGS,
     ...rest,
-    assignedPasscodes: assigned.filter((a) => a && a.id !== 'assign-general' && a.passcode),
+    assignedPasscodes: assigned
+      .filter((a) => a && a.id !== 'assign-general' && a.passcode)
+      .map((a) => ({
+        ...a,
+        workspaceMode: a.workspaceMode || 'shared',
+        allowedLineId: a.allowedLineId || 'all',
+      })),
   };
-}
+};
 
 function persistSettingsLocally(settings: SecuritySettings) {
   try {
@@ -125,9 +137,9 @@ interface AuthContextType {
   clearNotifications: () => void;
   dismissNotification: (id: string) => void;
   simulateLoginAlert: (customName?: string) => void;
-  broadcastCellEdit: (employeeId: string, dayIndex: number, code: string) => void;
+  broadcastCellEdit: (rosterId: string, employeeId: string, dayIndex: number, code: string) => void;
   subscribeToRemoteCellEdits: (
-    callback: (data: { employeeId: string; dayIndex: number; code: string; updatedBy: string }) => void,
+    callback: (data: { rosterId: string; employeeId: string; dayIndex: number; code: string; updatedBy: string }) => void,
   ) => () => void;
 }
 
@@ -149,6 +161,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // 2. Session (Tab isolated so testing supervisor + collaborator in two tabs works cleanly!)
   const [session, setSession] = useState<UserSession | null>(() => {
     try {
+      // Check if URL has a specific passcode param — if so, do NOT inherit globalStored!
+      let urlPasscode: string | null = null;
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        urlPasscode = params.get('code') || params.get('passcode') || params.get('p');
+        if (!urlPasscode && window.location.hash.includes('?')) {
+          const hp = new URLSearchParams(window.location.hash.split('?')[1]);
+          urlPasscode = hp.get('code') || hp.get('passcode') || hp.get('p');
+        }
+      }
+
+      if (urlPasscode) {
+        // If a direct link URL (?code=...) is opened or pasted, always present the Login Gate
+        // pre-filled with the credentials so the user explicitly clicks to log in.
+        sessionStorage.removeItem(TAB_SESSION_KEY);
+        return null;
+      }
+
       const tabStored = sessionStorage.getItem(TAB_SESSION_KEY);
       let s: UserSession | null = tabStored ? JSON.parse(tabStored) : null;
       if (!s) {
@@ -157,6 +187,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       if (s) {
         s.name = s.name.replace(/ \/ Operations Lead/g, '').trim() || 'Supervisor';
+        if (s.role !== 'supervisor' && s.passcodeUsed) {
+          const cleanCode = s.passcodeUsed.replace(/[^a-z0-9_-]/gi, '_');
+          setActiveDatabase(`shiftline_collab_${cleanCode}`);
+        } else {
+          setActiveDatabase('shiftline');
+        }
         return s;
       }
       return null;
@@ -400,18 +436,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               const stored = localStorage.getItem(NOTIFICATIONS_STORAGE_KEY);
               if (stored === '[]') {
                 setNotifications([]);
-              } else if (msg.notifications.length > 0) {
-                setNotifications(msg.notifications);
-                msg.notifications.forEach((n: any) => alertedIdsRef.current.add(n.id));
+              } else {
+                const localNotifs = notificationsRef.current || [];
+                const mergedMap = new Map<string, LoginNotification>();
+                for (const n of [...msg.notifications, ...localNotifs]) {
+                  if (n && n.id) mergedMap.set(n.id, n);
+                }
+                const mergedList = [...mergedMap.values()].sort(
+                  (a, b) => (b.timestamp || 0) - (a.timestamp || 0),
+                );
+                if (mergedList.length > 0) {
+                  setNotifications(mergedList);
+                  mergedList.forEach((n: any) => alertedIdsRef.current.add(n.id));
+                  fetch('/api/collab/notifications-sync', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ notifications: mergedList }),
+                  }).catch(() => {});
+                }
               }
             }
             if (Array.isArray(msg.users)) {
               updatePresenceFromList(msg.users);
             }
             if (msg.serverDb) {
-              importBackupData(msg.serverDb).catch(() => {});
+              if (sessionRef.current?.role === 'supervisor') {
+                importBackupData(msg.serverDb).catch(() => {});
+              }
             }
           } else if (msg.type === 'SERVER_DB_SYNC') {
+            if (sessionRef.current?.role !== 'supervisor') {
+              return;
+            }
+            const myClientId = typeof window !== 'undefined' ? (window as any).__shiftline_client_id : undefined;
+            if (msg.senderClientId && myClientId && msg.senderClientId === myClientId) {
+              // Ignore self-broadcast to avoid clearing and re-writing local DB
+              return;
+            }
             if (msg.data) {
               importBackupData(msg.data).catch(() => {});
             }
@@ -610,8 +671,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             toast(`🔔 ${leavingUser.name} has left the session.`, 'info');
           }
         } else if (msg.type === 'ROSTER_CELL_UPDATE') {
-          cellSubscribersRef.current.forEach((fn) => fn(msg));
+          // Do not mutate other logins/tabs
+          return;
         } else if (msg.type === 'SERVER_DB_SYNC') {
+          if (sessionRef.current?.role !== 'supervisor') return;
+          const myClientId = typeof window !== 'undefined' ? (window as any).__shiftline_client_id : undefined;
+          if ((msg as any).senderClientId && myClientId && (msg as any).senderClientId === myClientId) {
+            return;
+          }
           if (msg.data) {
             importBackupData(msg.data).catch(() => {});
           }
@@ -839,6 +906,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         ? cleanName
         : (assignedMatch?.assignedTo || cleanName);
 
+      const effectiveWorkspaceMode = assignedMatch?.workspaceMode || 'shared';
+      const effectiveAllowedLineId = assignedMatch?.allowedLineId || 'all';
+
       const newSession: UserSession = {
         id: `sess-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
         name: effectiveName,
@@ -846,7 +916,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         loginTime: Date.now(),
         passcodeUsed: cleanPasscode,
         device: navigator.userAgent.includes('Mobile') ? 'Mobile Device' : 'Desktop Browser',
+        workspaceMode: effectiveWorkspaceMode,
+        allowedLineId: effectiveAllowedLineId,
       };
+
+      if (effectiveRole !== 'supervisor' && cleanPasscode) {
+        const cleanCode = cleanPasscode.replace(/[^a-z0-9_-]/gi, '_');
+        setActiveDatabase(`shiftline_collab_${cleanCode}`);
+      } else {
+        setActiveDatabase('shiftline');
+      }
 
       setSession(newSession);
       sessionStorage.setItem(TAB_SESSION_KEY, JSON.stringify(newSession));
@@ -935,7 +1014,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         loginTime: Date.now(),
         passcodeUsed: 'admin_password',
         device: 'Admin Console',
+        workspaceMode: 'shared',
+        allowedLineId: 'all',
       };
+      setActiveDatabase('shiftline');
 
       setSession(newSession);
       sessionStorage.setItem(TAB_SESSION_KEY, JSON.stringify(newSession));
@@ -1056,6 +1138,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (session?.role === 'supervisor') {
       localStorage.removeItem(GLOBAL_SESSION_KEY);
     }
+    setActiveDatabase('shiftline');
     syncPresenceState();
   }, [session, syncPresenceState]);
 
@@ -1152,10 +1235,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Broadcast cell edit for real-time collaboration
   const broadcastCellEdit = useCallback(
-    (employeeId: string, dayIndex: number, code: string) => {
-      if (!channelRef.current || !session) return;
+    (rosterId: string, employeeId: string, dayIndex: number, code: string) => {
+      if (!channelRef.current || !session || session.workspaceMode === 'isolated') return;
       channelRef.current.postMessage({
         type: 'ROSTER_CELL_UPDATE',
+        rosterId,
         employeeId,
         dayIndex,
         code,
@@ -1169,11 +1253,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Subscribe to remote cell edits
   const subscribeToRemoteCellEdits = useCallback(
     (
-      callback: (data: { employeeId: string; dayIndex: number; code: string; updatedBy: string }) => void,
+      callback: (data: { rosterId: string; employeeId: string; dayIndex: number; code: string; updatedBy: string }) => void,
     ) => {
-      cellSubscribersRef.current.add(callback);
+      cellSubscribersRef.current.add(callback as any);
       return () => {
-        cellSubscribersRef.current.delete(callback);
+        cellSubscribersRef.current.delete(callback as any);
       };
     },
     [],

@@ -154,6 +154,7 @@ const Icons = {
 
 export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void } = {}) {
   const {
+    activeLineId,
     settings,
     lines,
     setLine,
@@ -173,21 +174,14 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
   const toast = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Filters state (Line 4 & 6 combined, Line 5 separate)
-  // Opens to the line group currently active in the Planner
-  const [selectedLine, setSelectedLine] = useViewState<LineGroup>(
-    'line',
-    settings.activeLineId === 'line5' ? 'L5' : 'L4_L6',
-  );
+  // Synchronize Work Orders view with the line active in Planner:
+  // When activeLineId is 'line5' -> L5
+  // When activeLineId is 'line6' (or 'line4') -> L4_L6
+  // User can also select 'ALL' to view all lines simultaneously
+  const plannerLineGroup: LineGroup = activeLineId === 'line5' ? 'L5' : 'L4_L6';
+  const [overrideGroup, setOverrideGroup] = useState<LineGroup | null>(null);
 
-  // Automatically update Work Orders view whenever the user opens Line 5 vs Line 4&6
-  useEffect(() => {
-    if (settings.activeLineId === 'line5') {
-      setSelectedLine('L5');
-    } else if (settings.activeLineId === 'line4' || settings.activeLineId === 'line6') {
-      setSelectedLine('L4_L6');
-    }
-  }, [settings.activeLineId, setSelectedLine]);
+  const selectedLine: LineGroup = overrideGroup === 'ALL' ? 'ALL' : plannerLineGroup;
   // Day shown in the shift cards; null = automatically the worst day of the selected lines
   const [pickedDate, setPickedDate] = useViewState<string | null>('date', null);
   const [selectedType, setSelectedType] = useViewState<string>('type', 'ALL');
@@ -434,15 +428,18 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
   };
 
   const handleSelectLineGroup = (group: LineGroup) => {
-    setSelectedLine(group);
     setPickedDate(null);
-    if (group === 'L5') {
-      if (settings.activeLineId !== 'line5') {
+    if (group === 'ALL') {
+      setOverrideGroup('ALL');
+    } else if (group === 'L5') {
+      setOverrideGroup(null);
+      if (activeLineId !== 'line5') {
         setLine('line5');
       }
     } else if (group === 'L4_L6') {
+      setOverrideGroup(null);
       const target = lines.find((l) => l.id === 'line4' || l.id === 'line6')?.id ?? 'line6';
-      if (settings.activeLineId !== 'line4' && settings.activeLineId !== 'line6') {
+      if (activeLineId !== 'line4' && activeLineId !== 'line6') {
         setLine(target);
       }
     }

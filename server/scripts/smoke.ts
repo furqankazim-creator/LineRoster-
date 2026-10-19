@@ -55,7 +55,7 @@ check('unauthenticated request rejected', noAuth.status === 401);
 
 // ---- push the seed data as a backup -----------------------------------
 // Build the backup shape from the web app's seed module.
-const seed = await import('../../src/data/seed.ts');
+const seed = await import('../../frontend/src/data/seed.ts');
 const backup = {
   lines: seed.SEED_LINES, codes: seed.SEED_CODES, employees: seed.SEED_EMPLOYEES, leave: seed.SEED_LEAVE, rosters: [],
   settings: { theme: 'dark', activeLineId: 'line5', activeYear: 2026, activeMonth: 9, weekendDays: [5, 6], maxConsecutive: 6 },
@@ -71,7 +71,7 @@ const sept = await (await fetch(base + '/rosters/line5/2026/9', { headers: H }))
 check('September generated from rules', Object.keys(sept.roster.cells).length === 22);
 check('headcount rows computed', sept.days.length === 30 && sept.days[0].total.M === 4);
 check('validator finds the 25–26 Sept Night gap', sept.issues.filter((i: any) => i.rule === 'below-minimum').length === 2);
-const fixture = JSON.parse(readFileSync(path.join(here, '../../src/domain/__tests__/september-2026.fixture.json'), 'utf8'));
+const fixture = JSON.parse(readFileSync(path.join(here, '../../frontend/src/domain/__tests__/september-2026.fixture.json'), 'utf8'));
 const matches = Object.entries(fixture.grid).every(([id, codes]) => JSON.stringify(sept.roster.cells[id].map((c: any) => c.code)) === JSON.stringify(codes));
 check('server roster matches the client\'s sheet cell-for-cell', matches);
 

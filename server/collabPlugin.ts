@@ -35,9 +35,46 @@ function loadServerDb() {
   return null;
 }
 
+let lastCloudDbUpdatedAt = 0;
+
+async function loadServerDbAsync() {
+  try {
+    const apiPort = process.env.PORT || '4400';
+    const r = await fetch(`http://127.0.0.1:${apiPort}/api/collab/db`);
+    if (r.ok) {
+      const j = (await r.json()) as { ok?: boolean; data?: any };
+      if (j?.data && Array.isArray(j.data.lines) && j.data.lines.length > 0) {
+        cachedDb = j.data;
+        if (typeof j.data.updatedAt === 'number' && j.data.updatedAt > lastCloudDbUpdatedAt) {
+          lastCloudDbUpdatedAt = j.data.updatedAt;
+        }
+        return j.data;
+      }
+    }
+  } catch {
+    /* fallback to local file */
+  }
+  return loadServerDb();
+}
+
+function forwardToMongoCollab(subpath: string, payload: any) {
+  try {
+    const apiPort = process.env.PORT || '4400';
+    fetch(`http://127.0.0.1:${apiPort}/api/collab/${subpath}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }).catch(() => {});
+  } catch {
+    /* ignore if Express API is not running */
+  }
+}
+
 function saveServerDb(data: any) {
   if (data && typeof data === 'object') {
-    data.updatedAt = Date.now();
+    const now = Date.now();
+    data.updatedAt = now;
+    lastCloudDbUpdatedAt = now;
   }
   cachedDb = data;
   try {
@@ -46,6 +83,7 @@ function saveServerDb(data: any) {
   } catch (err) {
     console.error('Failed to write server DB:', err);
   }
+  forwardToMongoCollab('db', data);
 }
 
 interface CollabUser {
@@ -170,9 +208,77 @@ function sendJson(res: any, status: number, data: any) {
 // Started from configureServer (dev server only) — a module-level timer would
 // keep `vite build` alive forever, which hangs CI / Vercel builds.
 let pruneTimer: ReturnType<typeof setInterval> | null = null;
+let cloudPollTimer: ReturnType<typeof setInterval> | null = null;
 function startPruning() {
-  if (pruneTimer) return;
-  pruneTimer = setInterval(pruneInactiveUsers, 5000);
+  if (!pruneTimer) {
+    pruneTimer = setInterval(pruneInactiveUsers, 5000);
+  }
+  if (!cloudPollTimer) {
+    cloudPollTimer = setInterval(() => {
+      void pollCloudChanges();
+    }, 3000);
+  }
+}
+
+async function pollCloudChanges() {
+  if (sseClients.size === 0) return;
+  try {
+    const apiPort = process.env.PORT || '4400';
+    const metaRes = await fetch(`http://127.0.0.1:${apiPort}/api/collab/cloud-meta`);
+    if (!metaRes.ok) return;
+    const meta = (await metaRes.json()) as {
+      ok?: boolean;
+      dbUpdatedAt?: number;
+      settingsUpdatedAt?: number;
+    };
+    if (
+      typeof meta.dbUpdatedAt === 'number' &&
+      meta.dbUpdatedAt > 0 &&
+      lastCloudDbUpdatedAt > 0 &&
+      meta.dbUpdatedAt > lastCloudDbUpdatedAt
+    ) {
+      lastCloudDbUpdatedAt = meta.dbUpdatedAt;
+      const freshDb = await loadServerDbAsync();
+      if (freshDb) {
+        try {
+          fs.mkdirSync(path.dirname(DB_FILE), { recursive: true });
+          fs.writeFileSync(DB_FILE, JSON.stringify(freshDb, null, 2), 'utf8');
+        } catch {}
+        broadcastSSE({
+          type: 'SERVER_DB_SYNC',
+          timestamp: Date.now(),
+          data: freshDb,
+        });
+      }
+    } else if (typeof meta.dbUpdatedAt === 'number' && meta.dbUpdatedAt > 0 && lastCloudDbUpdatedAt === 0) {
+      lastCloudDbUpdatedAt = meta.dbUpdatedAt;
+    }
+
+    if (
+      typeof meta.settingsUpdatedAt === 'number' &&
+      meta.settingsUpdatedAt > currentSettings.updatedAt
+    ) {
+      const stateRes = await fetch(`http://127.0.0.1:${apiPort}/api/collab/state`);
+      if (stateRes.ok) {
+        const st = await stateRes.json();
+        if (st?.settings) {
+          const s = st.settings;
+          currentSettings.updatedAt = s.updatedAt || meta.settingsUpdatedAt;
+          if (Array.isArray(s.assignedPasscodes)) currentSettings.assignedPasscodes = s.assignedPasscodes;
+          if (s.adminPassword) currentSettings.adminPassword = s.adminPassword;
+          if (typeof s.notifyOnLogin === 'boolean') currentSettings.notifyOnLogin = s.notifyOnLogin;
+          if (typeof s.soundAlert === 'boolean') currentSettings.soundAlert = s.soundAlert;
+          if (typeof s.requireName === 'boolean') currentSettings.requireName = s.requireName;
+          broadcastSSE({
+            type: 'SECURITY_SETTINGS_SYNC',
+            settings: currentSettings,
+          });
+        }
+      }
+    }
+  } catch {
+    /* ignore when API is offline */
+  }
 }
 
 function pruneInactiveUsers() {
@@ -245,7 +351,7 @@ export function collabServerPlugin(): Plugin {
             users: getActiveUsersList(),
             notifications: notificationsList.slice(0, 50),
             settings: currentSettings,
-            serverDb: loadServerDb(),
+            serverDb: await loadServerDbAsync(),
           };
           res.write(`data: ${JSON.stringify(initialPayload)}\n\n`);
 
@@ -314,6 +420,7 @@ export function collabServerPlugin(): Plugin {
           };
 
           notificationsList.unshift(notif);
+          forwardToMongoCollab('login', { name: cleanName, passcode: cleanPasscode, role, device, user: userObj, notification: notif });
 
           // Broadcast instantly to all connected SSE clients (e.g. Supervisor window)
           broadcastSSE({
@@ -369,6 +476,7 @@ export function collabServerPlugin(): Plugin {
           };
 
           notificationsList.unshift(notif);
+          forwardToMongoCollab('admin-login', { name, user: userObj, notification: notif });
 
           broadcastSSE({
             type: 'LOGIN_ALERT',
@@ -412,6 +520,7 @@ export function collabServerPlugin(): Plugin {
           };
 
           notificationsList.unshift(logoutNotif);
+          forwardToMongoCollab('logout', { userId, name, role, notification: logoutNotif });
 
           // Broadcast immediately to supervisor
           broadcastSSE({
@@ -448,6 +557,7 @@ export function collabServerPlugin(): Plugin {
               });
             }
           }
+          forwardToMongoCollab('heartbeat', { userId, name, role });
 
           return sendJson(res, 200, {
             ok: true,
@@ -471,6 +581,8 @@ export function collabServerPlugin(): Plugin {
             if (typeof s.soundAlert === 'boolean') currentSettings.soundAlert = s.soundAlert;
             if (typeof s.requireName === 'boolean') currentSettings.requireName = s.requireName;
 
+            forwardToMongoCollab('settings', { settings: currentSettings });
+
             broadcastSSE({
               type: 'SECURITY_SETTINGS_SYNC',
               settings: currentSettings,
@@ -486,6 +598,7 @@ export function collabServerPlugin(): Plugin {
         // 8. Clear Notifications: POST /api/collab/clear-notifications
         if (url.startsWith('/api/collab/clear-notifications') && req.method === 'POST') {
           notificationsList.length = 0;
+          forwardToMongoCollab('clear-notifications', {});
           broadcastSSE({
             type: 'NOTIFICATIONS_CLEAR',
           });
@@ -501,6 +614,7 @@ export function collabServerPlugin(): Plugin {
             if (idx !== -1) {
               notificationsList.splice(idx, 1);
             }
+            forwardToMongoCollab('dismiss-notification', { id });
             broadcastSSE({
               type: 'NOTIFICATION_DISMISS',
               id,
@@ -509,11 +623,28 @@ export function collabServerPlugin(): Plugin {
           return sendJson(res, 200, { ok: true });
         }
 
+        // 9b. Sync Notifications from Client to Server & MongoDB: POST /api/collab/notifications-sync
+        if (url.startsWith('/api/collab/notifications-sync') && req.method === 'POST') {
+          const body = await readJsonBody(req);
+          if (Array.isArray(body.notifications)) {
+            const existingIds = new Set(notificationsList.map((n) => n.id));
+            for (const n of body.notifications) {
+              if (n && n.id && !existingIds.has(n.id)) {
+                notificationsList.push(n);
+                existingIds.add(n.id);
+              }
+            }
+            notificationsList.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+          }
+          forwardToMongoCollab('notifications-sync', body);
+          return sendJson(res, 200, { ok: true, notifications: notificationsList.slice(0, 50) });
+        }
+
         // 10. Database Sync: GET /api/collab/db
         if (url.startsWith('/api/collab/db') && req.method === 'GET') {
           return sendJson(res, 200, {
             ok: true,
-            data: loadServerDb(),
+            data: await loadServerDbAsync(),
           });
         }
 
@@ -525,6 +656,7 @@ export function collabServerPlugin(): Plugin {
             broadcastSSE({
               type: 'SERVER_DB_SYNC',
               timestamp: Date.now(),
+              senderClientId: body.clientId,
               data: body,
             });
             return sendJson(res, 200, { ok: true });

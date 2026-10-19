@@ -24,6 +24,7 @@ export function Toolbar({
 }: Props) {
   const {
     settings, lines, codes, lineCodes, enableCode, setLine, setMonth, stepMonth, issues, undo, redo,
+    canUndo, canRedo,
     updateSettings, saveStatus, saveRoster,
   } = useStore();
   const [addCodeOpen, setAddCodeOpen] = useState(false);
@@ -120,20 +121,20 @@ export function Toolbar({
             onClick={async () => {
               try {
                 const f = await saveRoster();
-                toast(f ? `Saved. Downloaded ${f}` : 'Saved.', 'ok');
+                toast(f ? `Backup downloaded: ${f}` : 'Backup saved.', 'ok');
               } catch (err) {
                 toast(err instanceof Error ? err.message : 'Save failed.', 'error');
               }
             }}
-            title="Save (Ctrl+S): keeps changes in this browser and downloads an Excel backup file"
+            title="Export full Excel backup file (.xlsx) with all lines and rosters"
             className="flex items-center gap-1.5"
           >
             <DiskIcon />
-            <span className="hidden lg:inline">Save</span>
+            <span className="hidden lg:inline">Save Backup (.xlsx)</span>
           </Button>
           <span
-            className="hidden sm:inline-flex items-center gap-1 text-[11px] text-ink-3 font-medium"
-            title="Changes are automatically preserved in browser database"
+            className="hidden sm:inline-flex items-center gap-1 text-[11px] text-ink-3 font-medium bg-[var(--surface-2)] px-2 py-0.5 rounded border border-[var(--line)]"
+            title="All changes, edits, and imports are saved automatically in real time"
           >
             {saveStatus === 'saving' ? (
               <>
@@ -142,8 +143,8 @@ export function Toolbar({
               </>
             ) : (
               <>
-                <span className="text-[var(--ok)] text-[12px]">✓</span>
-                <span>Saved</span>
+                <span className="text-[var(--ok)] text-[12px] font-bold">✓</span>
+                <span>Auto-saved</span>
               </>
             )}
           </span>
@@ -260,8 +261,8 @@ export function Toolbar({
 
         <div className="mx-1 h-5 w-px bg-[var(--line)] hidden sm:block" />
 
-        <Button size="sm" onClick={undo} title="Undo (Ctrl+Z)">↶</Button>
-        <Button size="sm" onClick={redo} title="Redo (Ctrl+Shift+Z)">↷</Button>
+        <Button size="sm" onClick={undo} disabled={!canUndo} title="Undo (Ctrl+Z)">↶</Button>
+        <Button size="sm" onClick={redo} disabled={!canRedo} title="Redo (Ctrl+Y or Ctrl+Shift+Z)">↷</Button>
 
         <div className="ml-auto flex items-center gap-2">
           {!compact && (

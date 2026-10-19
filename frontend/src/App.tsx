@@ -67,14 +67,18 @@ export default function App() {
 }
 
 function AppContent({ onHome }: { onHome: () => void }) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, session } = useAuth();
 
   if (!isAuthenticated) {
     return <LoginGate onBackToHome={onHome} />;
   }
 
+  const storeKey = session?.id
+    ? `${session.id}_${session.workspaceMode || 'shared'}_${session.passcodeUsed || 'admin'}`
+    : 'guest';
+
   return (
-    <StoreProvider>
+    <StoreProvider key={storeKey}>
       <Shell onHome={onHome} />
     </StoreProvider>
   );
@@ -169,15 +173,17 @@ function Shell({ onHome }: { onHome: () => void }) {
             {/* User badge & Lock button */}
             <div className="flex items-center gap-2.5 sm:pl-2.5 sm:border-l border-[var(--line)]">
               <div
-                className="hidden 2xl:flex flex-col text-right leading-tight max-w-[130px]"
+                className="hidden 2xl:flex flex-col text-right leading-tight max-w-[170px]"
                 title={`Signed in as ${session?.name ?? 'User'} (${session?.role ?? 'viewer'})`}
               >
                 <span className="truncate text-[12px] font-bold text-ink">
                   {session?.name ? session.name.replace(/ \/ Operations Lead/g, '') : 'Supervisor'}
                 </span>
-                <span className="text-[10px] font-black uppercase tracking-wider text-[var(--accent)]">
-                  {session?.role === 'supervisor' ? 'Supervisor' : 'Collaborator'}
-                </span>
+                <div className="flex items-center justify-end">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-[var(--accent)]">
+                    {session?.role === 'supervisor' ? 'Supervisor' : 'Collaborator'}
+                  </span>
+                </div>
               </div>
               <button
                 type="button"

@@ -1,4 +1,5 @@
 export type UserRole = 'supervisor' | 'collaborator' | 'viewer';
+export type WorkspaceMode = 'shared' | 'isolated';
 
 export interface UserSession {
   id: string;
@@ -8,6 +9,8 @@ export interface UserSession {
   loginTime: number;
   passcodeUsed: string;
   device?: string;
+  workspaceMode?: WorkspaceMode;
+  allowedLineId?: string;
 }
 
 export interface LoginNotification {
@@ -40,6 +43,13 @@ export interface AssignedPasscode {
   lastUsedAt?: number;
   status: 'active' | 'revoked';
   notes?: string;
+  /**
+   * 'shared': Collaborator syncs and sees the supervisor's live schedule & work orders.
+   * 'isolated': Collaborator starts with a clean slate (0 rosters, 0 work orders) to import from scratch privately.
+   */
+  workspaceMode?: WorkspaceMode;
+  /** Restrict to a specific line (e.g. 'line5', 'line6') or 'all' */
+  allowedLineId?: string;
 }
 
 export function getAssignedUrl(passcode: string, assignedTo?: string): string {
@@ -117,6 +127,7 @@ export type CollabBroadcastMessage =
     }
   | {
       type: 'ROSTER_CELL_UPDATE';
+      rosterId: string;
       employeeId: string;
       dayIndex: number;
       code: string;

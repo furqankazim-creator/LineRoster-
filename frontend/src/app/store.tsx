@@ -5,13 +5,21 @@ import {
 } from 'react';
 
 import {
-  DEFAULT_SETTINGS, codeKey, db, ensureSeeded, getFullBackupData, getSettings, getStoredTheme, newId, patchSettings, saveStoredTheme, seedCodesForLine,
+  DEFAULT_SETTINGS, codeKey, db, ensureSeeded, getActiveDbName, getFullBackupData, getSettings, getStoredTheme, newId, patchSettings, saveStoredTheme, seedCodesForLine,
   type Settings, type WorkOrderImportReport,
 } from '@/data/db';
+
+const CLIENT_ID =
+  typeof window !== 'undefined'
+    ? (window as any).__shiftline_client_id ||
+      ((window as any).__shiftline_client_id = `client_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`)
+    : 'server';
 
 let syncTimer: any = null;
 function scheduleServerDbSync() {
   if (typeof window === 'undefined') return;
+  // If the active database is an isolated scratch workspace, do not push to supervisor server!
+  if (getActiveDbName() !== 'shiftline') return;
   if (syncTimer) clearTimeout(syncTimer);
   syncTimer = setTimeout(async () => {
     try {
@@ -19,7 +27,7 @@ function scheduleServerDbSync() {
       await fetch('/api/collab/db', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(backup),
+        body: JSON.stringify({ ...backup, clientId: CLIENT_ID }),
       });
     } catch {
       // offline or dev server without endpoint
@@ -56,6 +64,7 @@ import { useOptionalAuth } from '@/features/auth/authStore';
 interface RosterStore {
   ready: boolean;
   settings: Settings;
+  activeLineId: string;
   lines: Line[];
   codes: ShiftCode[];
   /** Every code in the database, across all lines. */
@@ -152,10 +161,16 @@ const UNDO_LIMIT = 50;
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
+  const auth = useOptionalAuth();
+  const session = auth?.session;
 
   useEffect(() => {
-    ensureSeeded().then(() => setReady(true));
-  }, []);
+    ensureSeeded({
+      isolated: session?.workspaceMode === 'isolated',
+      mirror: session?.role !== 'supervisor' && session?.workspaceMode !== 'isolated',
+      allowedLineId: session?.allowedLineId,
+    }).then(() => setReady(true));
+  }, [session?.role, session?.workspaceMode, session?.allowedLineId]);
 
   const rawSettings = useLiveQuery(() => db.settings.get('app'), [], undefined);
   const settings: Settings = useMemo(() => {
@@ -168,13 +183,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       theme: rawSettings.theme || activeTheme,
     };
   }, [rawSettings]);
-  const lines = useLiveQuery(() => db.lines.orderBy('order').toArray(), [], []) ?? [];
+  const allLines = useLiveQuery(() => db.lines.orderBy('order').toArray(), [], []) ?? [];
+  const lines = useMemo(() => {
+    if (session?.allowedLineId && session.allowedLineId !== 'all') {
+      return allLines.filter((l) => l.id === session.allowedLineId);
+    }
+    return allLines;
+  }, [allLines, session?.allowedLineId]);
   const allCodes = useLiveQuery(() => db.shiftCodes.orderBy('order').toArray(), [], []) ?? [];
   const leave = useLiveQuery(() => db.leave.toArray(), [], []) ?? [];
 
-  const { activeLineId, activeYear, activeMonth } = settings;
+  const activeLineId = useMemo(() => {
+    if (session?.allowedLineId && session.allowedLineId !== 'all') {
+      return session.allowedLineId;
+    }
+    return settings.activeLineId;
+  }, [session?.allowedLineId, settings.activeLineId]);
+  const { activeYear, activeMonth } = settings;
 
-  const employees = useLiveQuery(
+  const rawEmployees = useLiveQuery(
     async () =>
       (await db.employees.where('lineId').equals(activeLineId).toArray()).sort(
         (a, b) => a.order - b.order,
@@ -183,17 +210,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [],
   ) ?? [];
 
+  // Strictly filter to ensure NO employee from another line can ever enter this array
+  const employees = useMemo(
+    () => rawEmployees.filter((e) => e.lineId === activeLineId),
+    [rawEmployees, activeLineId],
+  );
+
   const lineLeave = useMemo(() => {
     const ids = new Set(employees.map((e) => e.id));
     return leave.filter((l) => ids.has(l.employeeId));
   }, [leave, employees]);
 
-  // ---- the active month's grid ------------------------------------------
   const [roster, setRoster] = useState<RosterMonth | null>(null);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved');
   const undoStack = useRef<RosterMonth[]>([]);
   const redoStack = useRef<RosterMonth[]>([]);
-  const [, forceRender] = useState(0);
+  const [undoCount, setUndoCount] = useState(0);
+  const [redoCount, setRedoCount] = useState(0);
+  const lastIdRef = useRef<string>('');
+  const lastPersistedTimeRef = useRef<number>(0);
 
   const id = rosterId(activeLineId, activeYear, activeMonth);
 
@@ -210,7 +245,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const codes = useMemo(() => {
     const used = new Set(extraCodes);
-    if (roster) {
+    if (roster && roster.lineId === activeLineId) {
       for (const row of Object.values(roster.cells)) {
         for (const cell of row) if (cell.code && cell.code !== OFF) used.add(cell.code);
       }
@@ -235,9 +270,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const current = (await db.monthCodes.get(id))?.codeIds ?? [];
       if (current.includes(codeId)) return;
       await db.monthCodes.put({ rosterId: id, codeIds: [...current, codeId] });
+      scheduleServerDbSync();
     },
     [id],
   );
+
+  const storedRoster = useLiveQuery(() => db.rosters.get(id), [id]);
 
   /**
    * Loads the stored grid for the active month, or generates one on the fly.
@@ -249,8 +287,27 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (!ready) return;
     let cancelled = false;
 
+    // Only reset undo/redo history when navigating to a different month or line
+    if (lastIdRef.current !== id) {
+      lastIdRef.current = id;
+      undoStack.current = [];
+      redoStack.current = [];
+      setUndoCount(0);
+      setRedoCount(0);
+      if (roster && roster.lineId !== activeLineId) {
+        setRoster(null);
+      }
+    }
+
     (async () => {
-      if (employees.length === 0) {
+      // Direct query for the active line to prevent any race condition with useLiveQuery
+      const currentEmployees = (
+        await db.employees.where('lineId').equals(activeLineId).toArray()
+      ).sort((a, b) => a.order - b.order);
+
+      if (cancelled) return;
+
+      if (currentEmployees.length === 0) {
         const emptyRoster: RosterMonth = {
           id,
           year: activeYear,
@@ -262,40 +319,66 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           updatedAt: Date.now(),
         };
         if (!cancelled) {
-          undoStack.current = [];
-          redoStack.current = [];
           setRoster(emptyRoster);
         }
         return;
       }
 
       const stored = await db.rosters.get(id);
-      const next = generateMonth({
-        year: activeYear, month: activeMonth, lineId: activeLineId,
-        employees, leaveBlocks: lineLeave, overrides: stored?.overrides ?? {},
-        extraHours: stored?.extraHours ?? {},
-      });
       if (cancelled) return;
-      undoStack.current = [];
-      redoStack.current = [];
+
+      // Filter stored overrides and extraHours to strictly isolate to this line's current employees
+      const validEmpIds = new Set(currentEmployees.map((e) => e.id));
+      const cleanOverrides: Record<string, Record<number, string>> = {};
+      for (const [empId, val] of Object.entries(stored?.overrides ?? {})) {
+        if (validEmpIds.has(empId)) cleanOverrides[empId] = val;
+      }
+      const cleanExtraHours: Record<string, Record<number, number>> = {};
+      for (const [empId, val] of Object.entries(stored?.extraHours ?? {})) {
+        if (validEmpIds.has(empId)) cleanExtraHours[empId] = val;
+      }
+
+      const lineLeaveBlocks = lineLeave.filter((l) => validEmpIds.has(l.employeeId));
+
+      const next = generateMonth({
+        year: activeYear,
+        month: activeMonth,
+        lineId: activeLineId,
+        employees: currentEmployees,
+        leaveBlocks: lineLeaveBlocks,
+        overrides: cleanOverrides,
+        extraHours: cleanExtraHours,
+      });
+
+      if (cancelled) return;
       setRoster(next);
 
-      // Persist a month the first time it is opened. Rotation fairness reads
-      // night-shift debt out of stored months, so a roster that was generated
-      // but never saved would leave everyone looking like they had worked zero
-      // nights.
-      if (!stored) await db.rosters.put(next);
+      // Persist a month the first time it is opened.
+      if (!stored) {
+        lastPersistedTimeRef.current = next.updatedAt;
+        await db.rosters.put(next);
+      }
     })();
 
     return () => {
       cancelled = true;
     };
-    // `employees`/`lineLeave` identity changes whenever the underlying rows do,
-    // which is exactly when the grid should be rebuilt.
   }, [ready, id, activeLineId, activeYear, activeMonth, employees, lineLeave]);
+
+  // Synchronize when an external action (like full Excel import or JSON backup restore) alters the active roster in DB
+  useEffect(() => {
+    if (!storedRoster) return;
+    if (storedRoster.updatedAt === lastPersistedTimeRef.current) return;
+    setRoster(storedRoster);
+    undoStack.current = [];
+    redoStack.current = [];
+    setUndoCount(0);
+    setRedoCount(0);
+  }, [storedRoster?.updatedAt]);
 
   const persist = useCallback(async (next: RosterMonth) => {
     setSaveStatus('saving');
+    lastPersistedTimeRef.current = next.updatedAt;
     try {
       await db.rosters.put(next);
       setSaveStatus('saved');
@@ -332,11 +415,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (prev) {
           undoStack.current = [...undoStack.current, prev].slice(-UNDO_LIMIT);
           redoStack.current = [];
+          setUndoCount(undoStack.current.length);
+          setRedoCount(0);
         }
         return next;
       });
       void persist(next);
-      forceRender((n) => n + 1);
     },
     [persist],
   );
@@ -413,13 +497,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   /** Shows the sheet that was just imported, and remembers it for that line. */
   const openSheet = useCallback(
-    (lineId: string, year: number, month: number) =>
-      patchSettings({
+    async (lineId: string, year: number, month: number) => {
+      await patchSettings({
         activeLineId: lineId,
         activeYear: year,
         activeMonth: month,
         lineMonths: { ...(settings.lineMonths ?? {}), [lineId]: { year, month } },
-      }),
+      });
+      scheduleServerDbSync();
+    },
     [settings.lineMonths],
   );
 
@@ -431,25 +517,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [activeYear, activeMonth, goToMonth],
   );
 
-  const auth = useOptionalAuth();
-
   const paintCell = useCallback(
     (employeeId: string, dayIndex: number, code: string) => {
       if (!roster) return;
       commit(setCellPure(roster, employeeId, dayIndex, code));
-      auth?.broadcastCellEdit(employeeId, dayIndex, code);
     },
-    [roster, commit, auth],
+    [roster, commit],
   );
-
-  // Real-time live collaboration sync: apply edits received from other windows/users
-  useEffect(() => {
-    if (!auth) return;
-    return auth.subscribeToRemoteCellEdits(({ employeeId, dayIndex, code }) => {
-      if (!roster) return;
-      commit(setCellPure(roster, employeeId, dayIndex, code));
-    });
-  }, [roster, commit, auth]);
 
   const paintRange = useCallback(
     (employeeId: string, from: number, to: number, code: string) => {
@@ -551,7 +625,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         await db.rosters.delete(rosterId(activeLineId, targetYear, targetMonth));
       });
 
-      void patchSettings({ activeYear: targetYear, activeMonth: targetMonth });
+      await patchSettings({ activeYear: targetYear, activeMonth: targetMonth });
+      scheduleServerDbSync();
     },
     [employees, activeLineId],
   );
@@ -560,22 +635,28 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const prev = undoStack.current.pop();
     if (!prev) return;
     setRoster((current) => {
-      if (current) redoStack.current = [...redoStack.current, current].slice(-UNDO_LIMIT);
+      if (current) {
+        redoStack.current = [...redoStack.current, current].slice(-UNDO_LIMIT);
+        setRedoCount(redoStack.current.length);
+      }
       return prev;
     });
+    setUndoCount(undoStack.current.length);
     void persist(prev);
-    forceRender((n) => n + 1);
   }, [persist]);
 
   const redo = useCallback(() => {
     const next = redoStack.current.pop();
     if (!next) return;
     setRoster((current) => {
-      if (current) undoStack.current = [...undoStack.current, current].slice(-UNDO_LIMIT);
+      if (current) {
+        undoStack.current = [...undoStack.current, current].slice(-UNDO_LIMIT);
+        setUndoCount(undoStack.current.length);
+      }
       return next;
     });
+    setRedoCount(redoStack.current.length);
     void persist(next);
-    forceRender((n) => n + 1);
   }, [persist]);
 
   // ---- CRUD -------------------------------------------------------------
@@ -616,11 +697,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
       }
     });
-    fetch('/api/collab/db/delete-employee', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ empId }),
-    }).catch(() => {});
+    if (getActiveDbName() === 'shiftline') {
+      fetch('/api/collab/db/delete-employee', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ empId }),
+      }).catch(() => {});
+    }
     scheduleServerDbSync();
   }, []);
 
@@ -678,11 +761,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
       }
     });
-    fetch('/api/collab/db/delete-code', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ codeId, scope }),
-    }).catch(() => {});
+    if (getActiveDbName() === 'shiftline') {
+      fetch('/api/collab/db/delete-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ codeId, scope }),
+      }).catch(() => {});
+    }
     scheduleServerDbSync();
   }, []);
 
@@ -695,6 +780,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
    */
   const switchLine = useCallback(
     async (lineId: string) => {
+      if (session?.allowedLineId && session.allowedLineId !== 'all' && lineId !== session.allowedLineId) {
+        return;
+      }
       const remembered = settings.lineMonths?.[lineId];
       if (remembered) {
         await patchSettings({
@@ -715,7 +803,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           : { activeLineId: lineId },
       );
     },
-    [settings.lineMonths],
+    [settings.lineMonths, session?.allowedLineId],
   );
 
   const saveLine = useCallback(async (line: Line) => {
@@ -774,11 +862,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
       },
     );
-    fetch('/api/collab/db/delete-line', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ lineId }),
-    }).catch(() => {});
+    if (getActiveDbName() === 'shiftline') {
+      fetch('/api/collab/db/delete-line', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lineId }),
+      }).catch(() => {});
+    }
     scheduleServerDbSync();
   }, []);
 
@@ -984,15 +1074,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         await db.settings.put(next);
       }
     });
-    fetch('/api/collab/db/clear-workorders', {
-      method: 'POST',
-    }).catch(() => {});
+    if (getActiveDbName() === 'shiftline') {
+      fetch('/api/collab/db/clear-workorders', {
+        method: 'POST',
+      }).catch(() => {});
+    }
     scheduleServerDbSync();
   }, []);
 
   const value: RosterStore = {
     ready,
     settings,
+    activeLineId,
     lines,
     codes,
     allCodes,
@@ -1006,8 +1099,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     issues,
     fairnessRows,
     hours,
-    canUndo: undoStack.current.length > 0,
-    canRedo: redoStack.current.length > 0,
+    canUndo: undoCount > 0,
+    canRedo: redoCount > 0,
     saveStatus,
     saveRoster,
 
@@ -1019,7 +1112,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       saveStoredTheme(theme);
       void patchSettings({ theme });
     },
-    updateSettings: (patch) => patchSettings(patch),
+    updateSettings: async (patch) => {
+      await patchSettings(patch);
+      scheduleServerDbSync();
+    },
 
     paintCell,
     paintRange,

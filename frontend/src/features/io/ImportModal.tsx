@@ -1,10 +1,11 @@
-import { useRef, useState } from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { useMemo, useRef, useState } from 'react';
 
 import { useStore } from '@/app/store';
 import { codeVars } from '@/app/tones';
 import { Button, Modal, Select, Switch, cx } from '@/components/ui';
-import { codeKey, db, newId } from '@/data/db';
-import { MONTH_NAMES, WEEKDAY_LABELS } from '@/domain/calendar';
+import { codeKey, db, newId, patchSettings } from '@/data/db';
+import { MONTH_NAMES, WEEKDAY_LABELS, parseSheetMeta } from '@/domain/calendar';
 import { rosterId } from '@/domain/generator';
 import { OFF } from '@/domain/types';
 import type { ImportResult } from '@/io/importXlsx';
@@ -14,12 +15,21 @@ const loadImporter = () => import('@/io/importXlsx');
 
 type Stage = 'pick-file' | 'pick-sheet' | 'review';
 
+function formatDate(ts?: number): string {
+  if (!ts) return 'previously';
+  return new Date(ts).toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
 /**
- * Excel import, with a mandatory review step.
+ * Excel import with single-sheet isolation, newest-month sorting, duplicate protection,
+ * and review step.
  *
- * Importing replaces the people on a line, so the client sees exactly what was
- * understood — each person's rest days, shift and detected rotation — before
- * anything is written. Nothing is silently overwritten.
+ * Only the chosen sheet is parsed and loaded. Sheets previously imported are hidden by
+ * default to avoid clutter and prevent accidental re-imports.
  */
 export function ImportModal({
   open,
@@ -33,53 +43,188 @@ export function ImportModal({
   const { settings, lines, codes, allCodes, openSheet } = useStore();
   const fileInput = useRef<HTMLInputElement>(null);
 
+  const storedLayouts = useLiveQuery(() => db.layouts.toArray(), [], []) ?? [];
+  const storedRosters = useLiveQuery(() => db.rosters.toArray(), [], []) ?? [];
+
   const [stage, setStage] = useState<Stage>('pick-file');
   const [buffer, setBuffer] = useState<ArrayBuffer | null>(null);
+  const [fileName, setFileName] = useState<string>('');
   const [sheets, setSheets] = useState<string[]>([]);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [targetLine, setTargetLine] = useState(settings.activeLineId);
   const [replace, setReplace] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showImportedSheets, setShowImportedSheets] = useState(false);
+  const [duplicateWarning, setDuplicateWarning] = useState<{
+    sheetName: string;
+    importedAt?: number;
+  } | null>(null);
+  const [isReimport, setIsReimport] = useState(false);
 
   const codeById = new Map(codes.map((c) => [c.id, c]));
 
   const reset = () => {
     setStage('pick-file');
     setBuffer(null);
+    setFileName('');
     setSheets([]);
     setResult(null);
     setError(null);
+    setShowImportedSheets(false);
+    setDuplicateWarning(null);
+    setIsReimport(false);
   };
+
+  // Inspect each sheet in the workbook to detect month, line, and import status
+  const sheetsInfo = useMemo(() => {
+    return sheets.map((name) => {
+      const meta = parseSheetMeta(name);
+
+      // Check whether this sheet was previously imported:
+      // 1. Direct record in settings.importedSheets
+      const record = settings.importedSheets?.[name];
+
+      // 2. Matching layout in Dexie
+      const matchingLayout = storedLayouts.find((l) => l.layout.sheetName === name);
+      const layoutRoster = matchingLayout
+        ? storedRosters.find((r) => r.id === matchingLayout.rosterId)
+        : undefined;
+
+      // 3. Line & Month match in rosters
+      let matchedRoster = layoutRoster;
+      const matchedLine = lines.find(
+        (l) =>
+          (meta.lineName && l.name.toLowerCase() === meta.lineName.toLowerCase()) ||
+          (meta.lineName?.includes('4') &&
+            meta.lineName?.includes('6') &&
+            l.name.includes('4') &&
+            l.name.includes('6')) ||
+          (meta.lineName && l.name.toLowerCase().includes(meta.lineName.toLowerCase())),
+      );
+
+      if (!matchedRoster && meta.year && meta.month && matchedLine) {
+        matchedRoster = storedRosters.find((r) => r.id === `${matchedLine.id}:${meta.year}-${meta.month}`);
+      }
+
+      const isImported = Boolean(record || matchingLayout || matchedRoster);
+      const importedAt = record?.importedAt ?? matchedRoster?.updatedAt;
+
+      // Score for sorting newest first: year * 100 + month
+      const score = (meta.year ?? 0) * 100 + (meta.month ?? 0);
+
+      return {
+        name,
+        meta,
+        matchedLine,
+        isImported,
+        importedAt,
+        score,
+      };
+    });
+  }, [sheets, settings.importedSheets, storedLayouts, storedRosters, lines]);
+
+  // Sort newest month first
+  const sortedSheets = useMemo(() => {
+    return [...sheetsInfo].sort((a, b) => {
+      // 1. Primary: Year and Month descending (newest month first)
+      if (b.score !== a.score) return b.score - a.score;
+      // 2. Un-imported sheets before imported sheets if same month
+      if (a.isImported !== b.isImported) return a.isImported ? 1 : -1;
+      // 3. Alphabetical tie-breaker
+      return a.name.localeCompare(b.name);
+    });
+  }, [sheetsInfo]);
+
+  const importedCount = useMemo(() => {
+    return sortedSheets.filter((s) => s.isImported).length;
+  }, [sortedSheets]);
+
+  const visibleSheets = useMemo(() => {
+    if (showImportedSheets) return sortedSheets;
+    return sortedSheets.filter((s) => !s.isImported);
+  }, [sortedSheets, showImportedSheets]);
 
   const onFile = async (file: File) => {
     try {
       setError(null);
+      setFileName(file.name);
       const buf = await file.arrayBuffer();
       const { listSheets } = await loadImporter();
       const names = listSheets(buf);
       setBuffer(buf);
       setSheets(names);
-      if (names.length === 1) await parseSheet(buf, names[0]);
-      else setStage('pick-sheet');
+      setShowImportedSheets(false);
+      setDuplicateWarning(null);
+      setIsReimport(false);
+
+      if (names.length === 1) {
+        await selectSheet(buf, names[0]);
+      } else {
+        setStage('pick-sheet');
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not read that file.');
     }
   };
 
-  const parseSheet = async (buf: ArrayBuffer, sheetName: string) => {
+  const selectSheet = async (buf: ArrayBuffer, sheetName: string, reimporting = false) => {
     try {
       setError(null);
+      setDuplicateWarning(null);
+      setIsReimport(reimporting);
+
+      // Auto-target line matching sheet name
+      const meta = parseSheetMeta(sheetName);
+      if (meta.lineName) {
+        const matched = lines.find(
+          (l) =>
+            l.name.toLowerCase() === meta.lineName?.toLowerCase() ||
+            (meta.lineName?.includes('4') &&
+              meta.lineName?.includes('6') &&
+              l.name.includes('4') &&
+              l.name.includes('6')) ||
+            (meta.lineName && l.name.toLowerCase().includes(meta.lineName.toLowerCase())),
+        );
+        if (matched) {
+          setTargetLine(matched.id);
+        }
+      }
+
       const { importSheet } = await loadImporter();
-      setResult(importSheet(buf, sheetName));
+      const res = importSheet(buf, sheetName);
+      setResult(res);
+
+      if (res.lineName) {
+        const matched = lines.find(
+          (l) =>
+            l.name.toLowerCase() === res.lineName?.toLowerCase() ||
+            (res.lineName?.includes('4') &&
+              res.lineName?.includes('6') &&
+              l.name.includes('4') &&
+              l.name.includes('6')),
+        );
+        if (matched) {
+          setTargetLine(matched.id);
+        }
+      }
+
       setStage('review');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not read that sheet.');
     }
   };
 
+  const handleSheetClick = (sheet: (typeof sortedSheets)[0]) => {
+    if (sheet.isImported) {
+      setDuplicateWarning({ sheetName: sheet.name, importedAt: sheet.importedAt });
+    } else if (buffer) {
+      void selectSheet(buffer, sheet.name, false);
+    }
+  };
+
   /**
    * Smart defaults for a shift code that appears in the imported Excel but
-   * doesn't yet exist in the app.  The tone/label/timing are inferred from
+   * doesn't yet exist in the app. The tone/label/timing are inferred from
    * the code's first letter(s) so the code shows up with the right colour
    * straight away — the user can fine-tune timings in Setup → Shift codes.
    */
@@ -143,11 +288,7 @@ export function ImportModal({
     }
 
     // ---- find which codes are missing from the current setup --------------
-    // Codes this sheet invents belong to the line being imported into, so they
-    // never appear on another line's grid.
     const rid = rosterId(targetLine, result.year, result.month);
-    // A code only needs creating when nothing in the catalogue defines it —
-    // not merely when the month being replaced happened not to use it.
     const lineCodeIds = new Set(
       allCodes.filter((c) => c.scope === targetLine).map((c) => c.id),
     );
@@ -175,13 +316,27 @@ export function ImportModal({
       await db.layouts.put({ rosterId: rid, layout: result.layout });
     });
 
+    // Save record of imported sheet into settings
+    const updatedImported = {
+      ...(settings.importedSheets ?? {}),
+      [result.sheetName]: {
+        sheetName: result.sheetName,
+        lineId: targetLine,
+        year: result.year,
+        month: result.month,
+        importedAt: Date.now(),
+        fileName: fileName || undefined,
+        employeeCount: employees.length,
+      },
+    };
+    await patchSettings({ importedSheets: updatedImported });
+
     // Land on the sheet that was just imported, on the line it went into.
     await openSheet(targetLine, result.year, result.month);
     onDone(employees.length);
     reset();
     onClose();
   };
-
 
   return (
     <Modal
@@ -190,11 +345,22 @@ export function ImportModal({
         reset();
         onClose();
       }}
-      width={660}
+      width={680}
       title="Import from Excel"
       description="Reads one of your existing roster sheets and works out each person's shift, rest days, rotation and leave."
       footer={
         <>
+          {stage === 'review' && sheets.length > 1 && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                setResult(null);
+                setStage('pick-sheet');
+              }}
+            >
+              ‹ Back to sheets
+            </Button>
+          )}
           <Button
             onClick={() => {
               reset();
@@ -245,24 +411,134 @@ export function ImportModal({
           <p className="mt-4 text-[11.5px] text-ink-3 leading-relaxed max-w-sm mx-auto">
             Works with both simple rosters and operational roster sheets (such as{' '}
             <span className="font-mono text-ink-2">Line 5_SEP-2026</span> or{' '}
-            <span className="font-mono text-ink-2">SEPTEMBER 2026 RST L5</span>). Detects employee names,
+            <span className="font-mono text-ink-2">SLV_Line 4&6_Roster_SEP_2026</span>). Detects employee names,
             shift schedules, rotations, and leave automatically.
           </p>
         </div>
       )}
 
       {stage === 'pick-sheet' && buffer && (
-        <div className="flex flex-col gap-2">
-          <p className="text-[12.5px] text-ink-2">That workbook has several sheets. Which one?</p>
-          {sheets.map((name) => (
-            <button
-              key={name}
-              onClick={() => void parseSheet(buffer, name)}
-              className="rounded-lg border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2.5 text-left text-[13px] hover:border-[var(--accent)] transition-colors"
-            >
-              {name}
-            </button>
-          ))}
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1.5 border-b border-[var(--line)]">
+            <div>
+              <p className="text-[13px] font-semibold text-ink">Choose a roster sheet to import</p>
+              <p className="text-[11.5px] text-ink-3">
+                Showing newest months first. Only the selected sheet will be imported.
+              </p>
+            </div>
+            {importedCount > 0 && (
+              <label className="flex items-center gap-2 cursor-pointer select-none text-[12px] text-ink-2">
+                <Switch
+                  checked={showImportedSheets}
+                  onChange={setShowImportedSheets}
+                  label={`Show previously imported (${importedCount})`}
+                />
+              </label>
+            )}
+          </div>
+
+          {duplicateWarning && (
+            <div className="rounded-xl border border-[var(--warn)] bg-[var(--surface-3)] p-3.5 flex flex-col gap-2.5 shadow-md animate-in fade-in">
+              <div className="flex items-start gap-2.5">
+                <span className="text-[16px] leading-tight">⚠️</span>
+                <div>
+                  <div className="text-[12.5px] font-semibold text-ink">
+                    This sheet was imported on {formatDate(duplicateWarning.importedAt)}
+                  </div>
+                  <p className="mt-0.5 text-[11.5px] text-ink-2 leading-relaxed">
+                    Importing <span className="font-mono font-bold text-ink">{duplicateWarning.sheetName}</span> again will replace the active roster records for this line and month. Import again?
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center justify-end gap-2 pt-1">
+                <Button size="sm" variant="outline" onClick={() => setDuplicateWarning(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  onClick={() => {
+                    if (buffer) void selectSheet(buffer, duplicateWarning.sheetName, true);
+                  }}
+                >
+                  Yes, import again
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {visibleSheets.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-[var(--line-strong)] bg-[var(--surface-2)] p-6 text-center">
+              <p className="text-[13px] font-medium text-ink">All sheets in this file were previously imported</p>
+              <p className="mt-1 text-[11.5px] text-ink-3">
+                Turn on "Show previously imported" above to re-import any sheet.
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                className="mt-3"
+                onClick={() => setShowImportedSheets(true)}
+              >
+                Show previously imported sheets ({importedCount})
+              </Button>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-1.5 max-h-[340px] overflow-y-auto pr-1">
+              {visibleSheets.map((sheet, index) => {
+                const isLatest = index === 0 && !sheet.isImported;
+                return (
+                  <button
+                    key={sheet.name}
+                    onClick={() => handleSheetClick(sheet)}
+                    className={cx(
+                      'group relative flex items-center justify-between gap-3 rounded-xl border px-3.5 py-2.5 text-left transition-all',
+                      sheet.isImported
+                        ? 'border-[var(--line)] bg-[var(--surface)] opacity-70 hover:opacity-100 hover:border-[var(--accent)] hover:bg-[var(--surface-2)]'
+                        : isLatest
+                        ? 'border-[var(--accent)] bg-[var(--surface-2)] shadow-xs hover:border-[var(--accent)] hover:brightness-105'
+                        : 'border-[var(--line)] bg-[var(--surface-2)] hover:border-[var(--accent)] hover:bg-[var(--surface-3)]',
+                    )}
+                  >
+                    <div className="flex flex-col min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="truncate text-[13px] font-medium text-ink">{sheet.name}</span>
+                        {isLatest && (
+                          <span className="rounded bg-[var(--accent)] px-1.5 py-0.5 font-mono text-[9.5px] font-bold text-[var(--accent-ink)] uppercase tracking-wide">
+                            Latest
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-ink-3">
+                        {sheet.meta.month && sheet.meta.year && (
+                          <span className="font-medium text-ink-2">
+                            {MONTH_NAMES[sheet.meta.month - 1]} {sheet.meta.year}
+                          </span>
+                        )}
+                        {sheet.meta.lineName && (
+                          <>
+                            <span>·</span>
+                            <span className="font-medium text-ink-2">{sheet.meta.lineName}</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="shrink-0 flex items-center gap-2">
+                      {sheet.isImported ? (
+                        <span className="rounded-md border border-[var(--line)] bg-[var(--surface-3)] px-2 py-1 text-[11px] font-medium text-ink-3">
+                          Already imported · {formatDate(sheet.importedAt)}
+                        </span>
+                      ) : (
+                        <span className="rounded-md bg-[var(--surface-3)] px-2 py-1 text-[11px] font-semibold text-ink-2 group-hover:bg-[var(--accent)] group-hover:text-[var(--accent-ink)] transition-colors">
+                          Select sheet ›
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -293,6 +569,12 @@ export function ImportModal({
             </div>
           </div>
 
+          {isReimport && (
+            <div className="rounded-lg border border-[var(--warn)] bg-[var(--surface-3)] px-3 py-2 text-[12px] text-ink-2">
+              ⚠️ <strong>Re-import:</strong> This sheet was previously imported. Confirming will update records for {MONTH_NAMES[result.month - 1]} {result.year}.
+            </div>
+          )}
+
           <Switch
             checked={replace}
             onChange={setReplace}
@@ -313,7 +595,7 @@ export function ImportModal({
 
           <div>
             <div className="mb-2 text-[10.5px] font-semibold uppercase tracking-wider text-ink-3">
-              What was understood
+              What was understood from this sheet
             </div>
             <div className="rounded-xl border border-[var(--line)] overflow-hidden">
               <div className="grid grid-cols-[1fr_52px_70px] sm:grid-cols-[1fr_58px_78px_1fr] gap-2 bg-[var(--surface-3)] px-3 py-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-ink-3">

@@ -1,6 +1,6 @@
 import XLSX from 'xlsx-js-style';
 
-import { MONTH_ABBR, daysInMonth } from '@/domain/calendar';
+import { MONTH_ABBR, daysInMonth, parseSheetMeta } from '@/domain/calendar';
 import { inferDefaultShift, inferRestDays, inferRotations } from '@/domain/generator';
 import { OFF, type Employee, type LeaveBlock, type Line, type RosterMonth, type RotationRule, type SheetLayout, type ShiftCode, type Weekday } from '@/domain/types';
 
@@ -33,20 +33,8 @@ export interface ImportResult {
 
 const KNOWN_WORKED = ['M', 'E', 'N', 'GS', 'P', 'MT', 'ET', 'NT', 'ML', 'EL', 'NL'];
 
-/** Parses a title like "Line 5_SEP-2026 Roster" or "SEPTEMBER 2026 RST L5" into its parts. */
-function parseTitle(title: string): { lineName: string | null; year: number | null; month: number | null } {
-  // Matches full month names or 3-letter abbreviations, followed by an optional separator, and a 4-digit year.
-  // Example: "SEP-2026", "SEPTEMBER 2026"
-  const monthMatch = title.match(/(?:^|[^A-Za-z])([A-Za-z]{3})[A-Za-z]*[-_ ]*(\d{4})/i);
-  // Matches "Line 5", "Line5", "L5", "L 5"
-  const lineMatch = title.match(/(?:Line|L)\s*(\d+)/i);
-  const monthIndex = monthMatch ? MONTH_ABBR.indexOf(monthMatch[1].toUpperCase()) : -1;
-  return {
-    lineName: lineMatch ? `Line ${lineMatch[1]}` : null,
-    year: monthMatch ? Number(monthMatch[2]) : null,
-    month: monthIndex >= 0 ? monthIndex + 1 : null,
-  };
-}
+export { parseSheetMeta };
+const parseTitle = parseSheetMeta;
 
 export function listSheets(buffer: ArrayBuffer): string[] {
   return XLSX.read(buffer, { type: 'array', cellStyles: true }).SheetNames;

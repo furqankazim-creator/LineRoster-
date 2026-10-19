@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-
-import { Button, Input, Modal, useToast } from '@/components/ui';
+import { Button, Input, Modal, useToast, cx } from '@/components/ui';
 
 import { useAuth } from './authStore';
-import { AssignedPasscode, getAssignedUrl, UserRole } from './types';
+import { AssignedPasscode, getAssignedUrl, UserRole, WorkspaceMode } from './types';
 
 interface Props {
   open: boolean;
@@ -23,6 +22,8 @@ export function ShareSecurityModal({ open, onClose }: Props) {
   const [recipientName, setRecipientName] = useState('');
   const [recipientCode, setRecipientCode] = useState('');
   const [recipientRole, setRecipientRole] = useState<UserRole>('collaborator');
+  const [recipientWorkspaceMode, setRecipientWorkspaceMode] = useState<WorkspaceMode>('isolated');
+  const [recipientAllowedLine, setRecipientAllowedLine] = useState<string>('all');
   const [recipientNote, setRecipientNote] = useState('');
 
   // Assigned passcodes list (synced with Setup page)
@@ -77,7 +78,14 @@ export function ShareSecurityModal({ open, onClose }: Props) {
   };
 
   // Helper to persist an assigned passcode immediately
-  const persistAssignedEntry = (name: string, code: string, role: UserRole, notes?: string) => {
+  const persistAssignedEntry = (
+    name: string,
+    code: string,
+    role: UserRole,
+    notes?: string,
+    workspaceMode: WorkspaceMode = recipientWorkspaceMode,
+    allowedLineId: string = recipientAllowedLine,
+  ) => {
     const cleanName = name.trim();
     const cleanCode = code.trim();
     if (!cleanName || !cleanCode) {
@@ -105,6 +113,8 @@ export function ShareSecurityModal({ open, onClose }: Props) {
       createdAt: Date.now(),
       status: 'active',
       notes: notes?.trim() || `${cleanName} direct link`,
+      workspaceMode,
+      allowedLineId,
     };
 
     let nextList = [...assignedList];
@@ -117,6 +127,41 @@ export function ShareSecurityModal({ open, onClose }: Props) {
     setAssignedList(nextList);
     updateSecuritySettings({ assignedPasscodes: nextList });
     return nextList;
+  };
+
+  const handleToggleWorkspaceMode = (id: string) => {
+    const nextList = assignedList.map((a) => {
+      if (a.id === id) {
+        const nextMode: WorkspaceMode = a.workspaceMode === 'isolated' ? 'shared' : 'isolated';
+        return { ...a, workspaceMode: nextMode };
+      }
+      return a;
+    });
+    setAssignedList(nextList);
+    updateSecuritySettings({ assignedPasscodes: nextList });
+    const target = nextList.find((a) => a.id === id);
+    toast(
+      `${target?.assignedTo} is now set to ${target?.workspaceMode === 'isolated' ? 'Clean Slate (Private Scratch)' : 'Live Screen Mirror'}.`,
+      'ok',
+    );
+  };
+
+  const handleCycleAllowedLine = (id: string) => {
+    const nextList = assignedList.map((a) => {
+      if (a.id === id) {
+        const current = a.allowedLineId || 'all';
+        const nextLine = current === 'all' ? 'line5' : current === 'line5' ? 'line6' : 'all';
+        return { ...a, allowedLineId: nextLine };
+      }
+      return a;
+    });
+    setAssignedList(nextList);
+    updateSecuritySettings({ assignedPasscodes: nextList });
+    const target = nextList.find((a) => a.id === id);
+    toast(
+      `${target?.assignedTo} line restriction is now ${target?.allowedLineId === 'all' ? 'All Lines' : target?.allowedLineId === 'line5' ? 'Line 5 only' : 'Line 4&6 only'}.`,
+      'ok',
+    );
   };
 
   const handleCopyPersonalLink = async () => {
@@ -188,7 +233,14 @@ export function ShareSecurityModal({ open, onClose }: Props) {
 
     // A filled-in draft is saved as that person's passcode
     if (cleanName || recipientCode.trim()) {
-      const saved = persistAssignedEntry(cleanName, recipientCode, recipientRole, recipientNote);
+      const saved = persistAssignedEntry(
+        cleanName,
+        recipientCode,
+        recipientRole,
+        recipientNote,
+        recipientWorkspaceMode,
+        recipientAllowedLine,
+      );
       if (!saved) return;
       nextAssigned = saved;
     }
@@ -203,6 +255,8 @@ export function ShareSecurityModal({ open, onClose }: Props) {
     setRecipientName('');
     setRecipientCode('');
     setRecipientNote('');
+    setRecipientWorkspaceMode('isolated');
+    setRecipientAllowedLine('all');
     toast(
       cleanName
         ? `Saved! Password for "${cleanName}" is now recorded in Setup.`
@@ -294,7 +348,7 @@ export function ShareSecurityModal({ open, onClose }: Props) {
                   onChange={(e) => setRecipientRole(e.target.value as UserRole)}
                   className="w-full h-8 px-2.5 rounded-lg border border-[var(--line)] bg-[var(--surface-3)] text-ink text-xs font-medium focus:outline-none focus:border-[var(--accent)]"
                 >
-                  <option value="collaborator">Collaborator (View Roster &amp; Work Orders)</option>
+                  <option value="collaborator">Collaborator (View &amp; Work with Schedules)</option>
                   <option value="supervisor">Supervisor (Full Management &amp; Share Control)</option>
                 </select>
               </div>
@@ -307,9 +361,81 @@ export function ShareSecurityModal({ open, onClose }: Props) {
                   type="text"
                   value={recipientNote}
                   onChange={(e) => setRecipientNote(e.target.value)}
-                  placeholder="e.g. IT Operations Partner direct link"
+                  placeholder="e.g. Operations Partner direct link"
                   className="bg-[var(--surface-3)] text-xs h-8"
                 />
+              </div>
+            </div>
+
+            {/* Supervisor Screen & Workspace Control */}
+            <div className="rounded-lg border border-[var(--line)] bg-[var(--surface-3)]/60 p-3 space-y-2.5">
+              <span className="font-semibold text-ink text-[11.5px] block">
+                Supervisor Screen &amp; Workspace Mode
+              </span>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <label
+                  className={cx(
+                    'flex flex-col p-2.5 rounded-lg border cursor-pointer transition-colors',
+                    recipientWorkspaceMode === 'isolated'
+                      ? 'border-[var(--accent)] bg-[var(--accent)]/10 text-ink'
+                      : 'border-[var(--line)] bg-[var(--surface-2)] text-ink-3 hover:text-ink',
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="workspaceMode"
+                      value="isolated"
+                      checked={recipientWorkspaceMode === 'isolated'}
+                      onChange={() => setRecipientWorkspaceMode('isolated')}
+                      className="accent-[var(--accent)]"
+                    />
+                    <span className="font-bold text-[11.5px] text-ink">Clean Slate (Import Scratch)</span>
+                  </div>
+                  <span className="text-[10.5px] text-ink-3 mt-1 pl-5">
+                    Starts with 0 rosters and 0 work orders in a private workspace. They can import from scratch without touching your screen.
+                  </span>
+                </label>
+
+                <label
+                  className={cx(
+                    'flex flex-col p-2.5 rounded-lg border cursor-pointer transition-colors',
+                    recipientWorkspaceMode === 'shared'
+                      ? 'border-[var(--accent)] bg-[var(--accent)]/10 text-ink'
+                      : 'border-[var(--line)] bg-[var(--surface-2)] text-ink-3 hover:text-ink',
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="workspaceMode"
+                      value="shared"
+                      checked={recipientWorkspaceMode === 'shared'}
+                      onChange={() => setRecipientWorkspaceMode('shared')}
+                      className="accent-[var(--accent)]"
+                    />
+                    <span className="font-bold text-[11.5px] text-ink">Mirror My Live Screen</span>
+                  </div>
+                  <span className="text-[10.5px] text-ink-3 mt-1 pl-5">
+                    Shows your exact live schedule and work orders with real-time sync.
+                  </span>
+                </label>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold text-ink-2 mb-1 block">
+                  Allowed Line Scope
+                </label>
+                <select
+                  value={recipientAllowedLine}
+                  onChange={(e) => setRecipientAllowedLine(e.target.value)}
+                  className="w-full h-8 px-2.5 rounded-lg border border-[var(--line)] bg-[var(--surface-2)] text-ink text-xs font-medium focus:outline-none focus:border-[var(--accent)]"
+                >
+                  <option value="all">All Lines (Line 5, Line 4&amp;6, etc.)</option>
+                  <option value="line5">Line 5 Only</option>
+                  <option value="line6">Line 4 &amp; 6 Only</option>
+                </select>
               </div>
             </div>
 
@@ -382,10 +508,29 @@ export function ShareSecurityModal({ open, onClose }: Props) {
                       {item.assignedTo.charAt(0).toUpperCase()}
                     </div>
                     <div>
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="font-semibold text-ink text-xs">{item.assignedTo}</span>
                         <span className="px-1.5 py-0.2 rounded text-[9.5px] font-bold uppercase tracking-wider bg-[var(--surface-3)] text-ink-2 border border-[var(--line)]">
                           {item.role}
+                        </span>
+                        <span
+                          className={cx(
+                            'px-1.5 py-0.2 rounded text-[9.5px] font-bold uppercase tracking-wider border cursor-pointer select-none transition-colors',
+                            item.workspaceMode === 'isolated'
+                              ? 'bg-amber-500/15 text-amber-400 border-amber-500/30 hover:bg-amber-500/25'
+                              : 'bg-blue-500/15 text-blue-400 border-blue-500/30 hover:bg-blue-500/25',
+                          )}
+                          onClick={() => handleToggleWorkspaceMode(item.id)}
+                          title="Click to toggle between Clean Slate and Live Mirror"
+                        >
+                          {item.workspaceMode === 'isolated' ? 'Clean Slate' : 'Live Mirror'}
+                        </span>
+                        <span
+                          className="px-1.5 py-0.2 rounded text-[9.5px] font-bold uppercase tracking-wider bg-purple-500/15 text-purple-400 border border-purple-500/30 cursor-pointer select-none hover:bg-purple-500/25 transition-colors"
+                          onClick={() => handleCycleAllowedLine(item.id)}
+                          title="Click to cycle line restriction (All Lines / Line 5 / Line 4&6)"
+                        >
+                          {item.allowedLineId === 'line5' ? 'Line 5' : item.allowedLineId === 'line6' ? 'Line 4&6' : 'All Lines'}
                         </span>
                         {online && (
                           <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-400">

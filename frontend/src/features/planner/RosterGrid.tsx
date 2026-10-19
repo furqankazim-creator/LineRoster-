@@ -38,9 +38,10 @@ interface Props {
   revealKey: number;
   /** Set by the Insights panel: scroll to and highlight this cell or day. */
   jumpTo: JumpTarget | null;
+  onOpenImport?: () => void;
 }
 
-export function RosterGrid({ brush, revealKey, jumpTo }: Props) {
+export function RosterGrid({ brush, revealKey, jumpTo, onOpenImport }: Props) {
   const {
     roster, employees, codes, columns, days, issues, settings, hours, paintCell, paintRange,
     setExtraHours,
@@ -68,6 +69,11 @@ export function RosterGrid({ brush, revealKey, jumpTo }: Props) {
   const codeById = useMemo(() => new Map(codes.map((c) => [c.id, c])), [codes]);
   const today = todayIndex(settings.activeYear, settings.activeMonth);
 
+  const lineEmployees = useMemo(
+    () => employees.filter((e) => e.lineId === settings.activeLineId),
+    [employees, settings.activeLineId],
+  );
+
   // ---- jump from Insights -------------------------------------------------
   // Scrolls the requested day into the middle of the view, focuses the cell if
   // a person was named, and flashes the whole column so the eye lands on it.
@@ -79,7 +85,7 @@ export function RosterGrid({ brush, revealKey, jumpTo }: Props) {
       const x = NAME_COL + jumpTo.dayIndex * CELL_W - (el.clientWidth - NAME_COL) / 2 + CELL_W / 2;
       el.scrollTo({ left: Math.max(0, x), behavior: 'smooth' });
       if (jumpTo.employeeId) {
-        const rowIdx = employees.findIndex((e) => e.id === jumpTo.employeeId);
+        const rowIdx = lineEmployees.findIndex((e) => e.id === jumpTo.employeeId);
         if (rowIdx >= 0) {
           const y = 46 + rowIdx * CELL_H - el.clientHeight / 2;
           el.scrollTo({ top: Math.max(0, y), left: Math.max(0, x), behavior: 'smooth' });
@@ -90,7 +96,7 @@ export function RosterGrid({ brush, revealKey, jumpTo }: Props) {
     setFlashDay(jumpTo.dayIndex);
     const t = setTimeout(() => setFlashDay(null), 1600);
     return () => clearTimeout(t);
-  }, [jumpTo, employees, NAME_COL, CELL_W, CELL_H]);
+  }, [jumpTo, lineEmployees, NAME_COL, CELL_W, CELL_H]);
 
   /** Cell-level issue lookup, so a cell can paint its own warning ring. */
   const issueMap = useMemo(() => {
@@ -158,8 +164,9 @@ export function RosterGrid({ brush, revealKey, jumpTo }: Props) {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.isContentEditable) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
 
-      const rowIds = employees.map((emp) => emp.id);
+      const rowIds = lineEmployees.map((emp) => emp.id);
       const r = rowIds.indexOf(focus.employeeId);
       const lastDay = columns.length - 1;
 
@@ -198,11 +205,16 @@ export function RosterGrid({ brush, revealKey, jumpTo }: Props) {
 
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [focus, roster, employees, columns.length, codes, paintCell]);
+  }, [focus, roster, lineEmployees, columns.length, codes, paintCell]);
 
-  if (!roster) {
+  if (!roster || roster.lineId !== settings.activeLineId) {
     return (
-      <div className="flex-1 grid place-items-center text-ink-3 text-[13px]">Building roster…</div>
+      <div className="flex-1 grid place-items-center text-ink-3 text-[13px]">
+        <div className="flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full bg-[var(--accent)] animate-ping" />
+          <span>Loading line roster…</span>
+        </div>
+      </div>
     );
   }
 
@@ -223,7 +235,7 @@ export function RosterGrid({ brush, revealKey, jumpTo }: Props) {
               style={{ width: NAME_COL, minWidth: NAME_COL }}
             >
               <span className="text-[10.5px] font-semibold uppercase tracking-wider text-ink-3">
-                {employees.length} people
+                {lineEmployees.length} people
               </span>
             </div>
             {columns.map((col) => {
@@ -288,7 +300,37 @@ export function RosterGrid({ brush, revealKey, jumpTo }: Props) {
           </div>
 
           {/* ------------------------------------------------------- rows */}
-          {employees.map((employee, rowIndex) => {
+          {lineEmployees.length === 0 && (
+            <div className="py-20 flex flex-col items-center justify-center text-center px-4">
+              <div className="w-14 h-14 rounded-2xl bg-[var(--surface-2)] border border-[var(--line-strong)] flex items-center justify-center text-ink-3 mb-4 shadow-xs">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <line x1="12" y1="18" x2="12" y2="12" />
+                  <line x1="9" y1="15" x2="15" y2="15" />
+                </svg>
+              </div>
+              <h3 className="text-[16px] font-bold text-ink">Clean Slate (Scratch Workspace)</h3>
+              <p className="text-[13px] text-ink-3 max-w-md mt-1.5 mb-5">
+                No roster has been imported yet for this line. You have a fresh, isolated workspace ready for your own data.
+              </p>
+              {onOpenImport && (
+                <button
+                  type="button"
+                  onClick={onOpenImport}
+                  className="px-4 py-2 rounded-xl bg-[var(--accent)] text-white font-bold text-[13px] hover:opacity-90 transition-opacity shadow-sm flex items-center gap-2"
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="17 8 12 3 7 8" />
+                    <line x1="12" y1="3" x2="12" y2="15" />
+                  </svg>
+                  <span>Import Excel Roster</span>
+                </button>
+              )}
+            </div>
+          )}
+          {lineEmployees.map((employee, rowIndex) => {
             const row = roster.cells[employee.id] ?? [];
             const empHours = hours[employee.id];
             const extras = roster.extraHours?.[employee.id] ?? {};

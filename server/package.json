@@ -7,7 +7,7 @@
     "dev": "tsx scripts/dev-db.ts",
     "dev:mem": "tsx scripts/dev-mem.ts",
     "start": "tsx scripts/dev-db.ts",
-    "server": "tsx src/index.ts",
+    "server": "tsx scripts/dev-db.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
