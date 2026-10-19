@@ -14,12 +14,10 @@ import type {
 } from '@/domain/types';
 import {
   SEED_CODES,
-  SEED_EMPLOYEES,
-  SEED_LEAVE,
   SEED_LINES,
   SEED_RESOURCE_REQUIREMENTS,
-  SEED_WORK_ORDERS,
 } from './seed';
+import defaultDatabase from './defaultDatabase.json';
 
 export type FontSize = 'xs' | 'compact' | 'normal' | 'large' | 'xl';
 export type FontFamily =
@@ -476,50 +474,48 @@ export async function ensureSeeded(options?: SeedOptions): Promise<void> {
 
     // Fallback to default seed if neither was available:
     if (!cloned) {
-      const targetLine = options.allowedLineId && options.allowedLineId !== 'all' ? options.allowedLineId : 'line5';
-      await db.transaction('rw', [db.lines, db.employees, db.shiftCodes, db.leave, db.settings, db.resourceRequirements], async () => {
-        await db.lines.bulkPut(SEED_LINES);
-        await db.shiftCodes.bulkPut(SEED_CODES.map((c) => ({ ...c, key: codeKey(c.id) })));
-        for (const line of SEED_LINES) {
-          await db.shiftCodes.bulkPut(
-            SEED_CODES.map((c) => ({ ...c, scope: line.id, key: codeKey(c.id, line.id) })),
-          );
-        }
-        await db.employees.bulkPut(SEED_EMPLOYEES);
-        await db.leave.bulkPut(SEED_LEAVE);
-        await db.resourceRequirements.bulkPut(SEED_RESOURCE_REQUIREMENTS);
-        await db.settings.put({
-          ...DEFAULT_SETTINGS,
-          activeLineId: targetLine,
-          seeded: true,
-        });
-      });
+      await importBackupData(defaultDatabase);
+      if (options.allowedLineId && options.allowedLineId !== 'all') {
+        const s = await db.settings.get('app');
+        await db.settings.put({ ...DEFAULT_SETTINGS, ...s, activeLineId: options.allowedLineId, seeded: true });
+      }
+      return;
     }
     return;
   }
 
-  // 1. Try to fetch the master database from the server (so all browsers / Gmail accounts sync together)
+  // 1. Try to fetch the master database from the server (so all browsers / sessions sync together)
   let serverData: any = null;
   if (typeof window !== 'undefined' && typeof fetch !== 'undefined') {
     try {
       const res = await fetch('/api/collab/db');
       if (res.ok) {
         const json = await res.json();
-        if (json.ok && json.data && Array.isArray(json.data.lines)) {
+        if (json.ok && json.data && Array.isArray(json.data.lines) && json.data.lines.length > 0) {
           serverData = json.data;
         }
       }
     } catch {
-      /* offline fallback */
+      /* offline / vercel static fallback */
     }
   }
 
-  // 2. If the server has an authoritative database:
+  // Check if current DB is missing Line 4&6 or work orders
+  const line6EmpCount = await db.employees.where('lineId').equals('line6').count();
+  const currentWorkOrdersCount = await db.workOrders.count();
+  const isStaleOrEmpty = !existing || !existing.seeded || line6EmpCount === 0 || currentWorkOrdersCount === 0;
+
+  // 2. On Vercel or offline without backend server: use defaultDatabase as authoritative initial seed
+  if (!serverData && isStaleOrEmpty) {
+    serverData = defaultDatabase;
+  }
+
+  // 3. If server or default database is available:
   if (serverData) {
     const localUpdatedAt = existing?.updatedAt || 0;
     const serverUpdatedAt = serverData.updatedAt || 0;
-    if (!existing?.seeded || serverUpdatedAt >= localUpdatedAt) {
-      // New browser session / another Gmail / incognito, or server has newer changes: adopt server DB immediately!
+    if (isStaleOrEmpty || serverUpdatedAt >= localUpdatedAt) {
+      // New browser session / Vercel initial load / stale empty state: adopt DB immediately!
       await importBackupData(serverData);
       return;
     } else if (localUpdatedAt > serverUpdatedAt) {
@@ -538,7 +534,7 @@ export async function ensureSeeded(options?: SeedOptions): Promise<void> {
     }
   }
 
-  // 3. If local already has data and server is empty:
+  // 4. If local already has data and server is empty:
   if (existing?.seeded && !serverData && getActiveDbName() === 'shiftline' && typeof window !== 'undefined' && typeof fetch !== 'undefined') {
     try {
       const backup = await getFullBackupData();
@@ -551,62 +547,10 @@ export async function ensureSeeded(options?: SeedOptions): Promise<void> {
     return;
   }
 
-  // Work orders start empty (the Work Orders page shows an import screen).
-  // Older versions seeded 9 demo work orders — remove them while they're
-  // still the untouched demo set; anything imported is left alone.
-  const demoIds = new Set(SEED_WORK_ORDERS.map((w) => w.id));
-  const current = await db.workOrders.toArray();
-  if (current.length > 0 && current.every((w) => demoIds.has(w.id))) {
-    await db.workOrders.clear();
+  if (isStaleOrEmpty) {
+    await importBackupData(defaultDatabase);
+    return;
   }
-  if (!existing?.seeded) {
-    const rrCount = await db.resourceRequirements.count();
-    if (rrCount === 0) {
-      await db.resourceRequirements.bulkPut(SEED_RESOURCE_REQUIREMENTS);
-    }
-  }
-
-  // Ensure lines match the client's 2-line model (Line 5 and Line 4 & 6 combined)
-  const existingLines = await db.lines.toArray();
-  const hasLine4 = existingLines.some((l) => l.id === 'line4');
-  const line6 = existingLines.find((l) => l.id === 'line6');
-  if (hasLine4) {
-    await db.lines.delete('line4');
-    if (line6 && line6.name !== 'Line 4 & 6') {
-      await db.lines.put({ ...line6, name: 'Line 4 & 6' });
-    }
-    // Re-assign any orphaned employees/codes from line4 to line6
-    const line4Emps = await db.employees.where('lineId').equals('line4').toArray();
-    for (const e of line4Emps) await db.employees.put({ ...e, lineId: 'line6' });
-    const line4Codes = await db.shiftCodes.where('scope').equals('line4').toArray();
-    for (const c of line4Codes) await db.shiftCodes.put({ ...c, scope: 'line6', key: codeKey(c.id, 'line6') });
-    await db.shiftCodes.where('scope').equals('line4').delete();
-  } else if (line6 && line6.name !== 'Line 4 & 6') {
-    await db.lines.put({ ...line6, name: 'Line 4 & 6' });
-  }
-
-  if (existing?.seeded) return;
-
-  await db.transaction('rw', db.lines, db.employees, db.shiftCodes, db.leave, db.settings, async () => {
-    await db.lines.bulkPut(SEED_LINES);
-    // The unscoped rows are the template; each line gets its own copy.
-    await db.shiftCodes.bulkPut(SEED_CODES.map((c) => ({ ...c, key: codeKey(c.id) })));
-    for (const line of SEED_LINES) {
-      await db.shiftCodes.bulkPut(
-        SEED_CODES.map((c) => ({ ...c, scope: line.id, key: codeKey(c.id, line.id) })),
-      );
-    }
-    await db.employees.bulkPut(SEED_EMPLOYEES);
-    await db.leave.bulkPut(SEED_LEAVE);
-    const activeTheme = getStoredTheme();
-    await db.settings.put({
-      ...DEFAULT_SETTINGS,
-      ...existing,
-      theme: existing?.theme || activeTheme,
-      key: 'app',
-      seeded: true,
-    });
-  });
 
   // Push newly seeded data to server so it is ready for other sessions (supervisor only):
   if (getActiveDbName() === 'shiftline' && typeof window !== 'undefined' && typeof fetch !== 'undefined') {
@@ -755,19 +699,19 @@ export async function importBackup(json: string): Promise<void> {
   }
 }
 
-/** Wipes everything and reloads the shipped September demo. */
+/** Wipes everything and reloads the shipped default database (both lines, 313 work orders). */
 export async function resetToSeed(): Promise<void> {
-  await db.transaction(
-    'rw',
-    [db.lines, db.employees, db.shiftCodes, db.leave, db.rosters, db.settings],
-    async () => {
-      await Promise.all([
-        db.lines.clear(), db.employees.clear(), db.shiftCodes.clear(),
-        db.leave.clear(), db.rosters.clear(), db.settings.clear(),
-      ]);
-    },
-  );
-  await ensureSeeded();
+  await importBackupData(defaultDatabase);
+  if (getActiveDbName() === 'shiftline' && typeof window !== 'undefined' && typeof fetch !== 'undefined') {
+    try {
+      const backup = await getFullBackupData();
+      await fetch('/api/collab/db', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(backup),
+      });
+    } catch {}
+  }
 }
 
 export function newId(prefix: string): string {

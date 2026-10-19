@@ -175,10 +175,17 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Synchronize Work Orders view with the line active in Planner:
-  // When activeLineId is 'line5' -> L5
-  // When activeLineId is 'line6' (or 'line4') -> L4_L6
+  // When active line is Line 4&6 -> L4_L6
+  // When active line is Line 5 -> L5
   // User can also select 'ALL' to view all lines simultaneously
-  const plannerLineGroup: LineGroup = activeLineId === 'line5' ? 'L5' : 'L4_L6';
+  const isLine46 = (id?: string) => {
+    if (!id) return false;
+    if (id === 'line4' || id === 'line6') return true;
+    const l = lines.find((x) => x.id === id);
+    return l ? (l.name.includes('4') && l.name.includes('6')) : false;
+  };
+
+  const plannerLineGroup: LineGroup = isLine46(activeLineId) ? 'L4_L6' : 'L5';
   const [overrideGroup, setOverrideGroup] = useState<LineGroup | null>(null);
 
   const selectedLine: LineGroup = overrideGroup === 'ALL' ? 'ALL' : plannerLineGroup;
@@ -433,14 +440,15 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
       setOverrideGroup('ALL');
     } else if (group === 'L5') {
       setOverrideGroup(null);
-      if (activeLineId !== 'line5') {
-        setLine('line5');
+      const target5 = lines.find((l) => l.id === 'line5' || (l.name.includes('5') && !l.name.includes('4')))?.id ?? 'line5';
+      if (activeLineId !== target5) {
+        setLine(target5);
       }
     } else if (group === 'L4_L6') {
       setOverrideGroup(null);
-      const target = lines.find((l) => l.id === 'line4' || l.id === 'line6')?.id ?? 'line6';
-      if (activeLineId !== 'line4' && activeLineId !== 'line6') {
-        setLine(target);
+      const target46 = lines.find((l) => l.id === 'line4' || l.id === 'line6' || (l.name.includes('4') && l.name.includes('6')))?.id ?? 'line6';
+      if (activeLineId !== target46) {
+        setLine(target46);
       }
     }
   };
