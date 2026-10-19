@@ -121,7 +121,7 @@ interface RosterStore {
   reorderEmployees(ids: string[]): Promise<void>;
 
   saveCode(code: ShiftCode): Promise<void>;
-  removeCode(id: string, scope?: string): Promise<void>;
+  removeCode(id: string, scope?: string, key?: string): Promise<void>;
   saveLine(line: Line): Promise<void>;
   removeLine(id: string): Promise<void>;
 
@@ -740,9 +740,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     scheduleServerDbSync();
   }, []);
 
-  const removeCode = useCallback(async (codeId: string, scope?: string) => {
+  const removeCode = useCallback(async (codeId: string, scope?: string, key?: string) => {
     await db.transaction('rw', [db.shiftCodes, db.monthCodes, db.employees], async () => {
+      if (key) {
+        await db.shiftCodes.delete(key);
+      }
       await db.shiftCodes.delete(codeKey(codeId, scope));
+      if (scope) {
+        await db.shiftCodes.delete(codeKey(codeId, undefined));
+      }
       const allMonthCodes = await db.monthCodes.toArray();
       for (const mc of allMonthCodes) {
         if (mc.codeIds.includes(codeId)) {

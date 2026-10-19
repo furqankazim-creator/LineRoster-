@@ -400,7 +400,7 @@ export function SetupPage() {
       {editingCode && (
         <CodeEditor
           code={editingCode}
-          isNew={!codes.some((c) => c.id === editingCode.id)}
+          isNew={!editingCode.id.trim() || !lineCodes.some((c) => c.id === editingCode.id)}
           onClose={() => setEditingCode(null)}
           onSave={async (next) => {
             await saveCode(next);
@@ -408,7 +408,7 @@ export function SetupPage() {
             toast(`Shift code ${next.id} saved.`, 'ok');
           }}
           onDelete={async () => {
-            await removeCode(editingCode.id, editingCode.scope);
+            await removeCode(editingCode.id, editingCode.scope, (editingCode as any).key);
             setEditingCode(null);
             toast('Shift code removed.', 'ok');
           }}
