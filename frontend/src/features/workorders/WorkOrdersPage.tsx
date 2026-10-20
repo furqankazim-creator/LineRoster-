@@ -80,73 +80,73 @@ function formatDisplayDate(raw: string | undefined): string {
 
 // Clean Enterprise Vector SVG Icons
 const Icons = {
-  Clipboard: () => (
-    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+  Clipboard: ({ className = 'w-4 h-4' }: { className?: string } = {}) => (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
     </svg>
   ),
-  Upload: () => (
-    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+  Upload: ({ className = 'w-4 h-4' }: { className?: string } = {}) => (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
     </svg>
   ),
-  Bolt: () => (
-    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+  Bolt: ({ className = 'w-4 h-4' }: { className?: string } = {}) => (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
     </svg>
   ),
-  Download: () => (
-    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+  Download: ({ className = 'w-4 h-4' }: { className?: string } = {}) => (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
     </svg>
   ),
-  AlertTriangle: () => (
-    <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+  AlertTriangle: ({ className = 'w-5 h-5 shrink-0' }: { className?: string } = {}) => (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
     </svg>
   ),
-  CheckCircle: () => (
-    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+  CheckCircle: ({ className = 'w-4 h-4' }: { className?: string } = {}) => (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
   ),
-  Users: () => (
-    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+  Users: ({ className = 'w-4 h-4' }: { className?: string } = {}) => (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
     </svg>
   ),
-  Calendar: () => (
-    <svg className="w-4 h-4 shrink-0 text-ink-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+  Calendar: ({ className = 'w-4 h-4 shrink-0 text-ink-3' }: { className?: string } = {}) => (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
     </svg>
   ),
-  Search: () => (
-    <svg className="w-4 h-4 text-ink-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+  Search: ({ className = 'w-4 h-4 text-ink-3' }: { className?: string } = {}) => (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
     </svg>
   ),
-  XCircle: () => (
-    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+  XCircle: ({ className = 'w-4 h-4' }: { className?: string } = {}) => (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
   ),
-  Sun: () => (
-    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+  Sun: ({ className = 'w-4 h-4' }: { className?: string } = {}) => (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
     </svg>
   ),
-  Sunset: () => (
-    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+  Sunset: ({ className = 'w-4 h-4' }: { className?: string } = {}) => (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707" />
     </svg>
   ),
-  Moon: () => (
-    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+  Moon: ({ className = 'w-4 h-4' }: { className?: string } = {}) => (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
     </svg>
   ),
-  Trash: () => (
-    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+  Trash: ({ className = 'w-4 h-4' }: { className?: string } = {}) => (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
     </svg>
   ),
@@ -334,6 +334,127 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
     return c;
   }, [workOrders]);
 
+  // Executive Plan & Status Helpers
+  const isWoCompleted = (wo: WorkOrder) => {
+    if (wo.status && /comp|close|done|finish/i.test(wo.status)) return true;
+    if (wo.scheduledFinish && todayIso && wo.scheduledFinish < todayIso && workload.byWo[wo.id]?.status === 'OK') {
+      return true;
+    }
+    return false;
+  };
+
+  const isDateInFilter = (dateStr: string | undefined, filter: 'today' | 'week' | 'month' | 'all', pMonthKey: string) => {
+    if (filter === 'all') return true;
+    if (!dateStr || !/^\d{4}-\d{2}-\d{2}/.test(dateStr)) return false;
+    const iso = dateStr.slice(0, 10);
+    if (filter === 'today') return iso === todayIso;
+    if (filter === 'month') return iso.startsWith(pMonthKey);
+    if (filter === 'week') {
+      const [ty, tm, td] = todayIso.split('-').map(Number);
+      const today = new Date(ty, tm - 1, td);
+      const dayOfWeek = today.getDay();
+      const startOfWeek = new Date(today);
+      startOfWeek.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+      startOfWeek.setHours(0, 0, 0, 0);
+      const endOfWeek = new Date(startOfWeek);
+      endOfWeek.setDate(startOfWeek.getDate() + 6);
+      endOfWeek.setHours(23, 59, 59, 999);
+
+      const [y, m, d] = iso.split('-').map(Number);
+      const target = new Date(y, m - 1, d);
+      return target >= startOfWeek && target <= endOfWeek;
+    }
+    return true;
+  };
+
+  // Month selector for the executive plan
+  const [planMonthKey, setPlanMonthKey] = useState<string>(() => {
+    return `${settings.activeYear}-${String(settings.activeMonth).padStart(2, '0')}`;
+  });
+
+  useEffect(() => {
+    if (settings.activeYear && settings.activeMonth) {
+      setPlanMonthKey(`${settings.activeYear}-${String(settings.activeMonth).padStart(2, '0')}`);
+    }
+  }, [settings.activeYear, settings.activeMonth]);
+
+  const availablePlanMonths = useMemo(() => {
+    const set = new Set<string>();
+    for (const wo of workOrders) {
+      const d = wo.scheduledStart || wo.scheduledFinish || wo.finishNoLater || wo.targetStart;
+      if (d && /^\d{4}-\d{2}/.test(d)) set.add(d.slice(0, 7));
+    }
+    set.add(`${settings.activeYear}-${String(settings.activeMonth).padStart(2, '0')}`);
+    return [...set].sort().reverse();
+  }, [workOrders, settings.activeYear, settings.activeMonth]);
+
+  const planMonthLabel = useMemo(() => {
+    const [py, pm] = planMonthKey.split('-').map(Number);
+    if (!py || !pm) return planMonthKey;
+    return new Date(py, pm - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }).toUpperCase();
+  }, [planMonthKey]);
+
+  // Work orders in selected plan month
+  const monthWorkOrders = useMemo(() => {
+    return workOrders.filter((wo) => {
+      const d = wo.scheduledStart || wo.scheduledFinish || wo.finishNoLater || wo.targetStart || '';
+      return d.startsWith(planMonthKey);
+    });
+  }, [workOrders, planMonthKey]);
+
+  const totalMonthWo = monthWorkOrders.length;
+
+  // Breakdown for Line 4 / 6 and Line 5
+  const linePlanStats = useMemo(() => {
+    const computeForLines = (lineCodes: string[]) => {
+      const wos = monthWorkOrders.filter((wo) => {
+        const l = parseLineCode(wo.line);
+        return l ? lineCodes.includes(l) : false;
+      });
+      let totalMp = 0;
+      let morning = 0;
+      let evening = 0;
+      let night = 0;
+      for (const wo of wos) {
+        const needed = wo.resourceRequired || workload.byWo[wo.id]?.needed || 1;
+        totalMp += needed;
+        const sh = workOrderShift(wo);
+        if (sh === 'M') morning++;
+        else if (sh === 'E') evening++;
+        else if (sh === 'N') night++;
+      }
+      return { totalWo: wos.length, totalMp, morning, evening, night };
+    };
+
+    return {
+      L4_L6: computeForLines(['L4', 'L6']),
+      L5: computeForLines(['L5']),
+    };
+  }, [monthWorkOrders, workload]);
+
+  const [statusTimeFilter, setStatusTimeFilter] = useState<'today' | 'week' | 'month' | 'all'>('month');
+
+  const statusProgressByLine = useMemo(() => {
+    const computeStatusForLines = (lineCodes: string[]) => {
+      const wos = workOrders.filter((wo) => {
+        const l = parseLineCode(wo.line);
+        if (!l || !lineCodes.includes(l)) return false;
+        const dateStr = wo.scheduledStart || wo.scheduledFinish || wo.finishNoLater || wo.targetStart;
+        return isDateInFilter(dateStr, statusTimeFilter, planMonthKey);
+      });
+      const completed = wos.filter((wo) => isWoCompleted(wo)).length;
+      const pending = wos.length - completed;
+      const completedPct = wos.length > 0 ? Math.round((completed / wos.length) * 100) : 0;
+      const pendingPct = wos.length > 0 ? Math.round((pending / wos.length) * 100) : 0;
+      return { total: wos.length, completed, pending, completedPct, pendingPct };
+    };
+
+    return {
+      L4_L6: computeStatusForLines(['L4', 'L6']),
+      L5: computeStatusForLines(['L5']),
+    };
+  }, [workOrders, statusTimeFilter, todayIso, planMonthKey, workload]);
+
   const [importing, setImporting] = useState(false);
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -463,7 +584,7 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
           {/* Title Area */}
           <div className="flex items-center gap-4">
             <div className="hidden sm:flex w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500/20 via-blue-500/10 to-transparent border border-indigo-500/30 items-center justify-center text-indigo-400 shadow-sm shrink-0">
-              <Icons.Clipboard />
+              <Icons.Clipboard className="w-6 h-6" />
             </div>
             <div>
               <div className="flex items-center gap-3 flex-wrap">
@@ -578,6 +699,556 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
         />
       ) : (
       <div className="w-full px-3 sm:px-6 lg:px-10 py-4 sm:py-6 flex flex-col gap-5 sm:gap-6">
+        {/* =========================================================================
+            EXECUTIVE DASHBOARD: MONTHLY WORK ORDER PLAN & WORK ORDER STATUS
+           ========================================================================= */}
+        <div className="flex flex-col gap-4 sm:gap-5">
+          {/* Card 1: Monthly Work Order Plan */}
+          <div className="rounded-2xl border border-[var(--line-strong)] bg-gradient-to-br from-[var(--surface)] via-[var(--surface)] to-[var(--surface-2)] p-4 sm:p-6 shadow-sm hover:shadow-md transition-all">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-[var(--line)]">
+              <div>
+                <span className="text-[11px] font-black uppercase tracking-wider text-cyan-600 dark:text-cyan-400 block mb-1">
+                  MAINTENANCE PLANNING
+                </span>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <h2 className="text-xl sm:text-2xl font-black text-ink tracking-tight">
+                    Monthly Work Order Plan
+                  </h2>
+                  {availablePlanMonths.length > 1 && (
+                    <select
+                      value={planMonthKey}
+                      onChange={(e) => setPlanMonthKey(e.target.value)}
+                      className="h-7 px-2.5 rounded-lg border border-[var(--line-strong)] bg-[var(--surface-2)] text-ink text-[12px] font-bold cursor-pointer focus:outline-none focus:border-cyan-500 shadow-xs"
+                      title="Select month to inspect planned work orders"
+                    >
+                      {availablePlanMonths.map((mKey) => {
+                        const [y, m] = mKey.split('-').map(Number);
+                        const label = new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                        return <option key={mKey} value={mKey}>{label}</option>;
+                      })}
+                    </select>
+                  )}
+                </div>
+              </div>
+
+              {/* Total WO for Month & Explorer CTA */}
+              <div className="flex items-center gap-3 sm:gap-5 shrink-0 self-start lg:self-center">
+                <div className="flex flex-col text-left sm:text-right">
+                  <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-ink-3">
+                    TOTAL WORK ORDERS (WO) · {planMonthLabel}
+                  </span>
+                  <div className="flex items-baseline sm:justify-end gap-2">
+                    <span className="text-3xl sm:text-4xl font-black font-mono tracking-tight text-ink">
+                      {totalMonthWo}
+                    </span>
+                    <span className="text-[12px] font-bold text-ink-3">Activities</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const el = document.getElementById('work-order-explorer');
+                    el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }}
+                  className="h-11 px-4 rounded-xl border border-cyan-500/40 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 font-bold text-[13px] hover:bg-cyan-500/20 hover:border-cyan-500/60 active:scale-95 transition-all inline-flex items-center gap-2 shadow-sm whitespace-nowrap"
+                  title="Scroll to full work orders list and filters"
+                >
+                  <span>Open Workorder</span>
+                  <span>→</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Monthly Line Breakdown Cards */}
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-5 mt-4 sm:mt-5">
+              {/* Line 4 / 6 Plan Card */}
+              <div
+                onClick={() => handleSelectLineGroup('L4_L6')}
+                className={`rounded-2xl border p-4 sm:p-5 transition-all cursor-pointer flex flex-col justify-between shadow-xs hover:shadow-md ${
+                  selectedLine === 'L4_L6'
+                    ? 'border-indigo-500/70 bg-[var(--surface-2)] ring-2 ring-indigo-500/30'
+                    : 'border-[var(--line)] bg-[var(--surface)] hover:bg-[var(--surface-2)]/60'
+                }`}
+                title="Click to filter Work Orders for Line 4 & 6"
+              >
+                <div className="flex items-center justify-between gap-2 mb-3.5">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500/20 to-blue-500/10 border border-indigo-500/30 flex items-center justify-center text-indigo-400 font-bold text-sm">
+                      4/6
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-black uppercase tracking-wider text-ink-3 block">
+                        THIS MONTH
+                      </span>
+                      <h3 className="text-[18px] font-black text-ink tracking-tight flex items-center gap-2">
+                        Line 4 / 6
+                        <span className="text-[11px] font-semibold text-ink-3 font-mono">
+                          ({Math.round((linePlanStats.L4_L6.totalMp / Math.max(1, linePlanStats.L4_L6.totalWo)) * 10) / 10} staff/order)
+                        </span>
+                      </h3>
+                    </div>
+                  </div>
+                  <span className="text-[11px] font-bold text-ink-3 px-2.5 py-0.5 rounded-full bg-[var(--surface-3)] border border-[var(--line)]">
+                    Combined Pool
+                  </span>
+                </div>
+
+                {/* Enhanced 5 Stat Pills */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-2.5">
+                  {/* Total Work Orders (WO) */}
+                  <div
+                    className="flex flex-col items-center justify-between rounded-xl border border-indigo-500/30 bg-gradient-to-b from-indigo-500/[0.08] via-[var(--surface-2)] to-[var(--surface)] p-2.5 sm:p-3 text-center transition-all duration-200 hover:border-indigo-500/60 hover:-translate-y-0.5 shadow-xs min-w-0"
+                    title="Total Work Orders (WO): The total count of maintenance jobs planned on Line 4&6 for this month."
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-indigo-500/15 border border-indigo-500/25 flex items-center justify-center text-indigo-500 dark:text-indigo-400 mb-1.5 shadow-xs shrink-0">
+                      <Icons.Clipboard className="w-4 h-4" />
+                    </div>
+                    <span className="text-[11px] font-black uppercase tracking-wider text-ink block leading-tight truncate w-full">
+                      TOTAL WO
+                    </span>
+                    <span className="text-[10px] font-semibold text-ink-3 block -mt-0.5 truncate w-full">
+                      Work Orders
+                    </span>
+                    <span className="text-2xl sm:text-[26px] font-black font-mono tracking-tight text-indigo-600 dark:text-indigo-300 my-1 block">
+                      {linePlanStats.L4_L6.totalWo}
+                    </span>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20 truncate max-w-full">
+                      Activities
+                    </span>
+                  </div>
+
+                  {/* Total Manpower (MP) */}
+                  <div
+                    className="flex flex-col items-center justify-between rounded-xl border border-cyan-500/30 bg-gradient-to-b from-cyan-500/[0.08] via-[var(--surface-2)] to-[var(--surface)] p-2.5 sm:p-3 text-center transition-all duration-200 hover:border-cyan-500/60 hover:-translate-y-0.5 shadow-xs min-w-0"
+                    title="Total Manpower (MP): Total technician and engineer headcount demand needed for Line 4&6 activities."
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-cyan-500/15 border border-cyan-500/25 flex items-center justify-center text-cyan-600 dark:text-cyan-400 mb-1.5 shadow-xs shrink-0">
+                      <Icons.Users className="w-4 h-4" />
+                    </div>
+                    <span className="text-[11px] font-black uppercase tracking-wider text-ink block leading-tight truncate w-full">
+                      TOTAL MP
+                    </span>
+                    <span className="text-[10px] font-semibold text-cyan-600/80 dark:text-cyan-400/80 block -mt-0.5 truncate w-full">
+                      Manpower
+                    </span>
+                    <span className="text-2xl sm:text-[26px] font-black font-mono tracking-tight text-cyan-600 dark:text-cyan-300 my-1 block">
+                      {linePlanStats.L4_L6.totalMp}
+                    </span>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border border-cyan-500/20 truncate max-w-full">
+                      Staff Needed
+                    </span>
+                  </div>
+
+                  {/* Morning Shift */}
+                  <div
+                    className="flex flex-col items-center justify-between rounded-xl border border-amber-500/30 bg-gradient-to-b from-amber-500/[0.08] via-[var(--surface-2)] to-[var(--surface)] p-2.5 sm:p-3 text-center transition-all duration-200 hover:border-amber-500/60 hover:-translate-y-0.5 shadow-xs min-w-0"
+                    title="Morning Shift (M): Planned during 06:00 – 15:00"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/25 flex items-center justify-center text-amber-500 dark:text-amber-400 mb-1.5 shadow-xs shrink-0">
+                      <Icons.Sun className="w-4 h-4" />
+                    </div>
+                    <span className="text-[11px] font-black uppercase tracking-wider text-ink block leading-tight truncate w-full">
+                      MORNING
+                    </span>
+                    <span className="text-[10px] font-semibold text-amber-600/80 dark:text-amber-400/80 block -mt-0.5 truncate w-full">
+                      06:00 – 15:00
+                    </span>
+                    <span className="text-2xl sm:text-[26px] font-black font-mono tracking-tight text-amber-600 dark:text-amber-300 my-1 block">
+                      {linePlanStats.L4_L6.morning}
+                    </span>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20 truncate max-w-full">
+                      Orders (M)
+                    </span>
+                  </div>
+
+                  {/* Evening Shift */}
+                  <div
+                    className="flex flex-col items-center justify-between rounded-xl border border-purple-500/30 bg-gradient-to-b from-purple-500/[0.08] via-[var(--surface-2)] to-[var(--surface)] p-2.5 sm:p-3 text-center transition-all duration-200 hover:border-purple-500/60 hover:-translate-y-0.5 shadow-xs min-w-0"
+                    title="Evening Shift (E): Planned during 14:00 – 23:00"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-purple-500/15 border border-purple-500/25 flex items-center justify-center text-purple-500 dark:text-purple-400 mb-1.5 shadow-xs shrink-0">
+                      <Icons.Sunset className="w-4 h-4" />
+                    </div>
+                    <span className="text-[11px] font-black uppercase tracking-wider text-ink block leading-tight truncate w-full">
+                      EVENING
+                    </span>
+                    <span className="text-[10px] font-semibold text-purple-600/80 dark:text-purple-400/80 block -mt-0.5 truncate w-full">
+                      14:00 – 23:00
+                    </span>
+                    <span className="text-2xl sm:text-[26px] font-black font-mono tracking-tight text-purple-600 dark:text-purple-300 my-1 block">
+                      {linePlanStats.L4_L6.evening}
+                    </span>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/20 truncate max-w-full">
+                      Orders (E)
+                    </span>
+                  </div>
+
+                  {/* Night Shift */}
+                  <div
+                    className="flex flex-col items-center justify-between rounded-xl border border-blue-500/30 bg-gradient-to-b from-blue-500/[0.08] via-[var(--surface-2)] to-[var(--surface)] p-2.5 sm:p-3 text-center transition-all duration-200 hover:border-blue-500/60 hover:-translate-y-0.5 shadow-xs min-w-0 col-span-2 sm:col-span-1"
+                    title="Night Shift (N): Planned during 22:00 – 07:00 (Engineering possession hours)"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-blue-500/15 border border-blue-500/25 flex items-center justify-center text-blue-500 dark:text-blue-400 mb-1.5 shadow-xs shrink-0">
+                      <Icons.Moon className="w-4 h-4" />
+                    </div>
+                    <span className="text-[11px] font-black uppercase tracking-wider text-ink block leading-tight truncate w-full">
+                      NIGHT
+                    </span>
+                    <span className="text-[10px] font-semibold text-blue-600/80 dark:text-blue-400/80 block -mt-0.5 truncate w-full">
+                      22:00 – 07:00
+                    </span>
+                    <span className="text-2xl sm:text-[26px] font-black font-mono tracking-tight text-blue-600 dark:text-blue-300 my-1 block">
+                      {linePlanStats.L4_L6.night}
+                    </span>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20 truncate max-w-full">
+                      Orders (N)
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Line 5 Plan Card */}
+              <div
+                onClick={() => handleSelectLineGroup('L5')}
+                className={`rounded-2xl border p-4 sm:p-5 transition-all cursor-pointer flex flex-col justify-between shadow-xs hover:shadow-md ${
+                  selectedLine === 'L5'
+                    ? 'border-indigo-500/70 bg-[var(--surface-2)] ring-2 ring-indigo-500/30'
+                    : 'border-[var(--line)] bg-[var(--surface)] hover:bg-[var(--surface-2)]/60'
+                }`}
+                title="Click to filter Work Orders for Line 5"
+              >
+                <div className="flex items-center justify-between gap-2 mb-3.5">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500/20 to-teal-500/10 border border-teal-500/30 flex items-center justify-center text-teal-400 font-bold text-sm">
+                      L5
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-black uppercase tracking-wider text-ink-3 block">
+                        THIS MONTH
+                      </span>
+                      <h3 className="text-[18px] font-black text-ink tracking-tight flex items-center gap-2">
+                        Line 5
+                        <span className="text-[11px] font-semibold text-ink-3 font-mono">
+                          ({Math.round((linePlanStats.L5.totalMp / Math.max(1, linePlanStats.L5.totalWo)) * 10) / 10} staff/order)
+                        </span>
+                      </h3>
+                    </div>
+                  </div>
+                  <span className="text-[11px] font-bold text-ink-3 px-2.5 py-0.5 rounded-full bg-[var(--surface-3)] border border-[var(--line)]">
+                    Solo Pool
+                  </span>
+                </div>
+
+                {/* Enhanced 5 Stat Pills */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-2.5">
+                  {/* Total Work Orders (WO) */}
+                  <div
+                    className="flex flex-col items-center justify-between rounded-xl border border-indigo-500/30 bg-gradient-to-b from-indigo-500/[0.08] via-[var(--surface-2)] to-[var(--surface)] p-2.5 sm:p-3 text-center transition-all duration-200 hover:border-indigo-500/60 hover:-translate-y-0.5 shadow-xs min-w-0"
+                    title="Total Work Orders (WO): The total count of maintenance jobs planned on Line 5 for this month."
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-indigo-500/15 border border-indigo-500/25 flex items-center justify-center text-indigo-500 dark:text-indigo-400 mb-1.5 shadow-xs shrink-0">
+                      <Icons.Clipboard className="w-4 h-4" />
+                    </div>
+                    <span className="text-[11px] font-black uppercase tracking-wider text-ink block leading-tight truncate w-full">
+                      TOTAL WO
+                    </span>
+                    <span className="text-[10px] font-semibold text-ink-3 block -mt-0.5 truncate w-full">
+                      Work Orders
+                    </span>
+                    <span className="text-2xl sm:text-[26px] font-black font-mono tracking-tight text-indigo-600 dark:text-indigo-300 my-1 block">
+                      {linePlanStats.L5.totalWo}
+                    </span>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20 truncate max-w-full">
+                      Activities
+                    </span>
+                  </div>
+
+                  {/* Total Manpower (MP) */}
+                  <div
+                    className="flex flex-col items-center justify-between rounded-xl border border-cyan-500/30 bg-gradient-to-b from-cyan-500/[0.08] via-[var(--surface-2)] to-[var(--surface)] p-2.5 sm:p-3 text-center transition-all duration-200 hover:border-cyan-500/60 hover:-translate-y-0.5 shadow-xs min-w-0"
+                    title="Total Manpower (MP): Total technician and engineer headcount demand needed for Line 5 activities."
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-cyan-500/15 border border-cyan-500/25 flex items-center justify-center text-cyan-600 dark:text-cyan-400 mb-1.5 shadow-xs shrink-0">
+                      <Icons.Users className="w-4 h-4" />
+                    </div>
+                    <span className="text-[11px] font-black uppercase tracking-wider text-ink block leading-tight truncate w-full">
+                      TOTAL MP
+                    </span>
+                    <span className="text-[10px] font-semibold text-cyan-600/80 dark:text-cyan-400/80 block -mt-0.5 truncate w-full">
+                      Manpower
+                    </span>
+                    <span className="text-2xl sm:text-[26px] font-black font-mono tracking-tight text-cyan-600 dark:text-cyan-300 my-1 block">
+                      {linePlanStats.L5.totalMp}
+                    </span>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border border-cyan-500/20 truncate max-w-full">
+                      Staff Needed
+                    </span>
+                  </div>
+
+                  {/* Morning Shift */}
+                  <div
+                    className="flex flex-col items-center justify-between rounded-xl border border-amber-500/30 bg-gradient-to-b from-amber-500/[0.08] via-[var(--surface-2)] to-[var(--surface)] p-2.5 sm:p-3 text-center transition-all duration-200 hover:border-amber-500/60 hover:-translate-y-0.5 shadow-xs min-w-0"
+                    title="Morning Shift (M): Planned during 06:00 – 15:00"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/25 flex items-center justify-center text-amber-500 dark:text-amber-400 mb-1.5 shadow-xs shrink-0">
+                      <Icons.Sun className="w-4 h-4" />
+                    </div>
+                    <span className="text-[11px] font-black uppercase tracking-wider text-ink block leading-tight truncate w-full">
+                      MORNING
+                    </span>
+                    <span className="text-[10px] font-semibold text-amber-600/80 dark:text-amber-400/80 block -mt-0.5 truncate w-full">
+                      06:00 – 15:00
+                    </span>
+                    <span className="text-2xl sm:text-[26px] font-black font-mono tracking-tight text-amber-600 dark:text-amber-300 my-1 block">
+                      {linePlanStats.L5.morning}
+                    </span>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20 truncate max-w-full">
+                      Orders (M)
+                    </span>
+                  </div>
+
+                  {/* Evening Shift */}
+                  <div
+                    className="flex flex-col items-center justify-between rounded-xl border border-purple-500/30 bg-gradient-to-b from-purple-500/[0.08] via-[var(--surface-2)] to-[var(--surface)] p-2.5 sm:p-3 text-center transition-all duration-200 hover:border-purple-500/60 hover:-translate-y-0.5 shadow-xs min-w-0"
+                    title="Evening Shift (E): Planned during 14:00 – 23:00"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-purple-500/15 border border-purple-500/25 flex items-center justify-center text-purple-500 dark:text-purple-400 mb-1.5 shadow-xs shrink-0">
+                      <Icons.Sunset className="w-4 h-4" />
+                    </div>
+                    <span className="text-[11px] font-black uppercase tracking-wider text-ink block leading-tight truncate w-full">
+                      EVENING
+                    </span>
+                    <span className="text-[10px] font-semibold text-purple-600/80 dark:text-purple-400/80 block -mt-0.5 truncate w-full">
+                      14:00 – 23:00
+                    </span>
+                    <span className="text-2xl sm:text-[26px] font-black font-mono tracking-tight text-purple-600 dark:text-purple-300 my-1 block">
+                      {linePlanStats.L5.evening}
+                    </span>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/20 truncate max-w-full">
+                      Orders (E)
+                    </span>
+                  </div>
+
+                  {/* Night Shift */}
+                  <div
+                    className="flex flex-col items-center justify-between rounded-xl border border-blue-500/30 bg-gradient-to-b from-blue-500/[0.08] via-[var(--surface-2)] to-[var(--surface)] p-2.5 sm:p-3 text-center transition-all duration-200 hover:border-blue-500/60 hover:-translate-y-0.5 shadow-xs min-w-0 col-span-2 sm:col-span-1"
+                    title="Night Shift (N): Planned during 22:00 – 07:00 (Engineering possession hours)"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-blue-500/15 border border-blue-500/25 flex items-center justify-center text-blue-500 dark:text-blue-400 mb-1.5 shadow-xs shrink-0">
+                      <Icons.Moon className="w-4 h-4" />
+                    </div>
+                    <span className="text-[11px] font-black uppercase tracking-wider text-ink block leading-tight truncate w-full">
+                      NIGHT
+                    </span>
+                    <span className="text-[10px] font-semibold text-blue-600/80 dark:text-blue-400/80 block -mt-0.5 truncate w-full">
+                      22:00 – 07:00
+                    </span>
+                    <span className="text-2xl sm:text-[26px] font-black font-mono tracking-tight text-blue-600 dark:text-blue-300 my-1 block">
+                      {linePlanStats.L5.night}
+                    </span>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20 truncate max-w-full">
+                      Orders (N)
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 2: Work Order Status */}
+          <div className="rounded-2xl border border-[var(--line-strong)] bg-gradient-to-br from-[var(--surface)] via-[var(--surface)] to-[var(--surface-2)] p-4 sm:p-6 shadow-sm hover:shadow-md transition-all">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3.5 border-b border-[var(--line)]">
+              <div>
+                <h3 className="text-[13px] font-black uppercase tracking-wider text-cyan-600 dark:text-cyan-400">
+                  WORK ORDER STATUS
+                </h3>
+                <span className="text-[12.5px] text-ink-3">
+                  {statusTimeFilter === 'today' ? 'Today' : statusTimeFilter === 'week' ? 'This Week' : statusTimeFilter === 'month' ? `This Month (${planMonthLabel})` : 'All Activities'} · Execution &amp; Completion Tracking
+                </span>
+              </div>
+
+              <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
+                {/* Time filter buttons */}
+                <div className="flex items-center gap-1 bg-[var(--surface-2)] p-1 rounded-xl border border-[var(--line)]">
+                  {(['today', 'week', 'month', 'all'] as const).map((key) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setStatusTimeFilter(key)}
+                      className={`px-3 py-1 rounded-lg text-[12px] font-bold transition-all ${
+                        statusTimeFilter === key
+                          ? 'bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border border-cyan-500/40 shadow-xs'
+                          : 'text-ink-3 hover:text-ink'
+                      }`}
+                    >
+                      {key === 'today' ? 'Today' : key === 'week' ? 'This Week' : key === 'month' ? 'This Month' : 'All'}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Legend */}
+                <div className="flex items-center gap-3.5 text-[12px] font-bold text-ink-2">
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-xs" /> Completed
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shadow-xs" /> Pending
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Status Progress Bars by Line */}
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-3.5 sm:gap-4 mt-4">
+              {/* Line 4 / 6 Status */}
+              <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 sm:p-5 shadow-xs hover:shadow-md transition-all">
+                <div className="flex items-center justify-between mb-3 pb-2.5 border-b border-[var(--line)]">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-500 dark:text-indigo-400 font-bold text-xs">
+                      4/6
+                    </div>
+                    <div>
+                      <h4 className="text-[15px] font-black text-ink leading-tight">Line 4 / 6</h4>
+                      <span className="text-[11px] font-medium text-ink-3">TSM Maintenance Pool</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25 shadow-xs">
+                      {statusProgressByLine.L4_L6.completedPct}% Complete
+                    </span>
+                    <span className="text-[11px] font-mono font-bold text-ink-3 px-2 py-1 rounded-lg bg-[var(--surface-2)] border border-[var(--line)]">
+                      {statusProgressByLine.L4_L6.total} activities
+                    </span>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  {/* Completed Bar */}
+                  <div>
+                    <div className="flex items-center justify-between text-[12px] font-bold mb-1.5">
+                      <span className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-xs" />
+                        Completed
+                      </span>
+                      <span className="font-mono text-ink">
+                        {statusProgressByLine.L4_L6.completed} <span className="text-ink-3 font-normal">({statusProgressByLine.L4_L6.completedPct}%)</span>
+                      </span>
+                    </div>
+                    <div className="w-full h-3 rounded-full bg-[var(--surface-3)] overflow-hidden border border-[var(--line)]/60 p-0.5">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-500 shadow-xs"
+                        style={{ width: `${statusProgressByLine.L4_L6.completedPct}%` }}
+                        title={`${statusProgressByLine.L4_L6.completedPct}% completed (${statusProgressByLine.L4_L6.completed} / ${statusProgressByLine.L4_L6.total})`}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Pending Bar */}
+                  <div>
+                    <div className="flex items-center justify-between text-[12px] font-bold mb-1.5">
+                      <span className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
+                        <span className="w-2 h-2 rounded-full bg-amber-500 shadow-xs" />
+                        Pending
+                      </span>
+                      <span className="font-mono text-ink">
+                        {statusProgressByLine.L4_L6.pending} <span className="text-ink-3 font-normal">({statusProgressByLine.L4_L6.pendingPct}%)</span>
+                      </span>
+                    </div>
+                    <div className="w-full h-3 rounded-full bg-[var(--surface-3)] overflow-hidden border border-[var(--line)]/60 p-0.5">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-amber-500 via-amber-400 to-orange-400 transition-all duration-500 shadow-xs"
+                        style={{ width: `${statusProgressByLine.L4_L6.pendingPct}%` }}
+                        title={`${statusProgressByLine.L4_L6.pendingPct}% pending (${statusProgressByLine.L4_L6.pending} / ${statusProgressByLine.L4_L6.total})`}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Line 5 Status */}
+              <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 sm:p-5 shadow-xs hover:shadow-md transition-all">
+                <div className="flex items-center justify-between mb-3 pb-2.5 border-b border-[var(--line)]">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-teal-500/15 border border-teal-500/30 flex items-center justify-center text-teal-500 dark:text-teal-400 font-bold text-xs">
+                      L5
+                    </div>
+                    <div>
+                      <h4 className="text-[15px] font-black text-ink leading-tight">Line 5</h4>
+                      <span className="text-[11px] font-medium text-ink-3">Dedicated Maintenance Crew</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25 shadow-xs">
+                      {statusProgressByLine.L5.completedPct}% Complete
+                    </span>
+                    <span className="text-[11px] font-mono font-bold text-ink-3 px-2 py-1 rounded-lg bg-[var(--surface-2)] border border-[var(--line)]">
+                      {statusProgressByLine.L5.total} activities
+                    </span>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  {/* Completed Bar */}
+                  <div>
+                    <div className="flex items-center justify-between text-[12px] font-bold mb-1.5">
+                      <span className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-xs" />
+                        Completed
+                      </span>
+                      <span className="font-mono text-ink">
+                        {statusProgressByLine.L5.completed} <span className="text-ink-3 font-normal">({statusProgressByLine.L5.completedPct}%)</span>
+                      </span>
+                    </div>
+                    <div className="w-full h-3 rounded-full bg-[var(--surface-3)] overflow-hidden border border-[var(--line)]/60 p-0.5">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-500 shadow-xs"
+                        style={{ width: `${statusProgressByLine.L5.completedPct}%` }}
+                        title={`${statusProgressByLine.L5.completedPct}% completed (${statusProgressByLine.L5.completed} / ${statusProgressByLine.L5.total})`}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Pending Bar */}
+                  <div>
+                    <div className="flex items-center justify-between text-[12px] font-bold mb-1.5">
+                      <span className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
+                        <span className="w-2 h-2 rounded-full bg-amber-500 shadow-xs" />
+                        Pending
+                      </span>
+                      <span className="font-mono text-ink">
+                        {statusProgressByLine.L5.pending} <span className="text-ink-3 font-normal">({statusProgressByLine.L5.pendingPct}%)</span>
+                      </span>
+                    </div>
+                    <div className="w-full h-3 rounded-full bg-[var(--surface-3)] overflow-hidden border border-[var(--line)]/60 p-0.5">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-amber-500 via-amber-400 to-orange-400 transition-all duration-500 shadow-xs"
+                        style={{ width: `${statusProgressByLine.L5.pendingPct}%` }}
+                        title={`${statusProgressByLine.L5.pendingPct}% pending (${statusProgressByLine.L5.pending} / ${statusProgressByLine.L5.total})`}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Workload Intensity Legend Bar at bottom */}
+            <div className="flex flex-wrap items-center gap-4 sm:gap-6 pt-3.5 mt-3.5 border-t border-[var(--line)] text-[11px] sm:text-[11.5px] font-bold text-ink-3 uppercase tracking-wider">
+              <span className="inline-flex items-center gap-1.5 text-ink-3">
+                <span className="w-2 h-2 rounded-full bg-slate-400" /> Normal
+              </span>
+              <span className="inline-flex items-center gap-1.5 text-cyan-600 dark:text-cyan-400">
+                <span className="w-2 h-2 rounded-full bg-cyan-400" /> Moderate
+              </span>
+              <span className="inline-flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
+                <span className="w-2 h-2 rounded-full bg-amber-400" /> High workload
+              </span>
+              <span className="inline-flex items-center gap-1.5 text-rose-600 dark:text-rose-400">
+                <span className="w-2 h-2 rounded-full bg-rose-500" /> Very high
+              </span>
+            </div>
+          </div>
+        </div>
+
         {/* =========================================================================
             KPI CARDS: 3 SHIFTS MANPOWER & BUFFER DASHBOARD (EXPANDED & LEGIBLE)
            ========================================================================= */}
@@ -1080,8 +1751,9 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
         </div>
 
         {/* =========================================================================
-            ENTERPRISE FULL-WIDTH DATA TABLE
+            ENTERPRISE FULL-WIDTH DATA TABLE & EXPLORER
            ========================================================================= */}
+        <div id="work-order-explorer" className="scroll-mt-6 flex flex-col gap-4">
         {/* Phones: one card per work order (the table needs too much width) */}
         <div className="md:hidden flex flex-col gap-3">
           {filteredWorkOrders.length === 0 && (
@@ -1487,7 +2159,7 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
                     <td colSpan={10 + extraColumns.length} className="py-20 text-center">
                       <div className="flex flex-col items-center justify-center gap-3">
                         <div className="w-14 h-14 rounded-2xl bg-[var(--surface-2)] flex items-center justify-center text-ink-3 border border-[var(--line)]">
-                          <Icons.Clipboard />
+                          <Icons.Clipboard className="w-7 h-7" />
                         </div>
                         <h4 className="text-[16px] font-bold text-ink">No activities match your filters</h4>
                         <p className="text-[13px] text-ink-3 max-w-md">
@@ -1500,6 +2172,7 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
               </tbody>
             </table>
           </div>
+        </div>
         </div>
       </div>
       )}

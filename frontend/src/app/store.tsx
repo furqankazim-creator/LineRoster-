@@ -5,7 +5,7 @@ import {
 } from 'react';
 
 import {
-  DEFAULT_SETTINGS, codeKey, db, ensureSeeded, getActiveDbName, getFullBackupData, getSettings, getStoredTheme, newId, patchSettings, saveStoredTheme, seedCodesForLine,
+  DEFAULT_SETTINGS, codeKey, db, ensureSeeded, getActiveDbName, getFullBackupData, getSettings, getStoredActiveView, getStoredTheme, newId, patchSettings, saveStoredActiveView, saveStoredTheme, seedCodesForLine,
   type Settings, type WorkOrderImportReport,
 } from '@/data/db';
 
@@ -124,6 +124,7 @@ interface RosterStore {
   removeCode(id: string, scope?: string, key?: string): Promise<void>;
   saveLine(line: Line): Promise<void>;
   removeLine(id: string): Promise<void>;
+  clearLineRoster(lineId: string): Promise<void>;
 
   saveLeave(block: LeaveBlock): Promise<void>;
   removeLeave(id: string): Promise<void>;
@@ -172,14 +173,33 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }).then(() => setReady(true));
   }, [session?.role, session?.workspaceMode, session?.allowedLineId]);
 
+  const storedView = useMemo(() => getStoredActiveView(), []);
   const rawSettings = useLiveQuery(() => db.settings.get('app'), [], undefined);
   const [navMonthOverride, setNavMonthOverride] = useState<{
     year: number;
     month: number;
   } | null>(null);
 
-  const activeYear = navMonthOverride?.year ?? rawSettings?.activeYear ?? DEFAULT_SETTINGS.activeYear;
-  const activeMonth = navMonthOverride?.month ?? rawSettings?.activeMonth ?? DEFAULT_SETTINGS.activeMonth;
+  const effectiveLineId = useMemo(() => {
+    if (session?.allowedLineId && session.allowedLineId !== 'all') {
+      return session.allowedLineId;
+    }
+    return rawSettings?.activeLineId || storedView?.activeLineId || DEFAULT_SETTINGS.activeLineId;
+  }, [session?.allowedLineId, rawSettings?.activeLineId, storedView?.activeLineId]);
+
+  const activeYear = useMemo(() => {
+    if (navMonthOverride?.year) return navMonthOverride.year;
+    const remembered = rawSettings?.lineMonths?.[effectiveLineId] || storedView?.lineMonths?.[effectiveLineId];
+    if (remembered?.year) return remembered.year;
+    return rawSettings?.activeYear ?? storedView?.activeYear ?? DEFAULT_SETTINGS.activeYear;
+  }, [navMonthOverride, rawSettings?.lineMonths, rawSettings?.activeYear, storedView, effectiveLineId]);
+
+  const activeMonth = useMemo(() => {
+    if (navMonthOverride?.month) return navMonthOverride.month;
+    const remembered = rawSettings?.lineMonths?.[effectiveLineId] || storedView?.lineMonths?.[effectiveLineId];
+    if (remembered?.month) return remembered.month;
+    return rawSettings?.activeMonth ?? storedView?.activeMonth ?? DEFAULT_SETTINGS.activeMonth;
+  }, [navMonthOverride, rawSettings?.lineMonths, rawSettings?.activeMonth, storedView, effectiveLineId]);
 
   useEffect(() => {
     if (rawSettings && navMonthOverride) {
@@ -195,10 +215,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const merged = rawSettings ? { ...base, ...rawSettings, theme: rawSettings.theme || activeTheme } : base;
     return {
       ...merged,
+      activeLineId: effectiveLineId,
       activeYear,
       activeMonth,
     };
-  }, [rawSettings, activeYear, activeMonth]);
+  }, [rawSettings, effectiveLineId, activeYear, activeMonth]);
 
   const allLines = useLiveQuery(() => db.lines.orderBy('order').toArray(), [], []) ?? [];
   const lines = useMemo(() => {
@@ -214,12 +235,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const allEmployees = useLiveQuery(() => db.employees.toArray(), [], []) ?? [];
   const allRosters = useLiveQuery(() => db.rosters.toArray(), [], []) ?? [];
 
-  const activeLineId = useMemo(() => {
-    if (session?.allowedLineId && session.allowedLineId !== 'all') {
-      return session.allowedLineId;
-    }
-    return settings.activeLineId;
-  }, [session?.allowedLineId, settings.activeLineId]);
+  const activeLineId = effectiveLineId;
 
   const rawEmployees = useLiveQuery(
     async () =>
@@ -577,13 +593,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const goToMonth = useCallback(
     (year: number, month: number) => {
       setNavMonthOverride({ year, month });
-      void patchSettings({
+      saveStoredActiveView({
         activeYear: year,
         activeMonth: month,
-        lineMonths: { ...(settings.lineMonths ?? {}), [activeLineId]: { year, month } },
+        lineMonths: { [activeLineId]: { year, month } },
       });
+      void (async () => {
+        const current = await getSettings();
+        await patchSettings({
+          activeYear: year,
+          activeMonth: month,
+          lineMonths: { ...(current.lineMonths ?? {}), [activeLineId]: { year, month } },
+        });
+        scheduleServerDbSync();
+      })();
     },
-    [activeLineId, settings.lineMonths],
+    [activeLineId],
   );
 
   const setMonth = useCallback(
@@ -595,15 +620,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const openSheet = useCallback(
     async (lineId: string, year: number, month: number) => {
       setNavMonthOverride({ year, month });
+      saveStoredActiveView({
+        activeLineId: lineId,
+        activeYear: year,
+        activeMonth: month,
+        lineMonths: { [lineId]: { year, month } },
+      });
+      const current = await getSettings();
       await patchSettings({
         activeLineId: lineId,
         activeYear: year,
         activeMonth: month,
-        lineMonths: { ...(settings.lineMonths ?? {}), [lineId]: { year, month } },
+        lineMonths: { ...(current.lineMonths ?? {}), [lineId]: { year, month } },
       });
       scheduleServerDbSync();
     },
-    [settings.lineMonths],
+    [],
   );
 
   const stepMonth = useCallback(
@@ -723,7 +755,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       });
 
       setNavMonthOverride({ year: targetYear, month: targetMonth });
-      await patchSettings({ activeYear: targetYear, activeMonth: targetMonth });
+      saveStoredActiveView({
+        activeYear: targetYear,
+        activeMonth: targetMonth,
+        lineMonths: { [activeLineId]: { year: targetYear, month: targetMonth } },
+      });
+      const current = await getSettings();
+      await patchSettings({
+        activeYear: targetYear,
+        activeMonth: targetMonth,
+        lineMonths: { ...(current.lineMonths ?? {}), [activeLineId]: { year: targetYear, month: targetMonth } },
+      });
       scheduleServerDbSync();
     },
     [employees, activeLineId],
@@ -887,33 +929,74 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (session?.allowedLineId && session.allowedLineId !== 'all' && lineId !== session.allowedLineId) {
         return;
       }
-      const remembered = settings.lineMonths?.[lineId];
+      const current = await getSettings();
+      const stored = getStoredActiveView();
+      const remembered = current.lineMonths?.[lineId] || stored?.lineMonths?.[lineId];
       if (remembered) {
         setNavMonthOverride({ year: remembered.year, month: remembered.month });
+        saveStoredActiveView({
+          activeLineId: lineId,
+          activeYear: remembered.year,
+          activeMonth: remembered.month,
+          lineMonths: { [lineId]: { year: remembered.year, month: remembered.month } },
+        });
         await patchSettings({
           activeLineId: lineId,
           activeYear: remembered.year,
           activeMonth: remembered.month,
+          lineMonths: { ...(current.lineMonths ?? {}), [lineId]: { year: remembered.year, month: remembered.month } },
         });
+        scheduleServerDbSync();
         return;
       }
-      // Never visited: open the month that line actually holds data for.
+      // Never visited: check if there is an imported sheet record for this line
+      const matchingImported = Object.values(current.importedSheets || {})
+        .filter((s) => s.lineId === lineId)
+        .sort((a, b) => b.importedAt - a.importedAt)[0];
+      if (matchingImported) {
+        setNavMonthOverride({ year: matchingImported.year, month: matchingImported.month });
+        saveStoredActiveView({
+          activeLineId: lineId,
+          activeYear: matchingImported.year,
+          activeMonth: matchingImported.month,
+          lineMonths: { [lineId]: { year: matchingImported.year, month: matchingImported.month } },
+        });
+        await patchSettings({
+          activeLineId: lineId,
+          activeYear: matchingImported.year,
+          activeMonth: matchingImported.month,
+          lineMonths: { ...(current.lineMonths ?? {}), [lineId]: { year: matchingImported.year, month: matchingImported.month } },
+        });
+        scheduleServerDbSync();
+        return;
+      }
+      // Open the month that line actually holds data for in rosters.
       const rosters = await db.rosters.where('lineId').equals(lineId).toArray();
       const withEdits = rosters.filter((r) => Object.keys(r.overrides ?? {}).length > 0);
       const best = (withEdits.length ? withEdits : rosters)
         .reduce<typeof rosters[number] | null>((a, b) => (!a || b.updatedAt > a.updatedAt ? b : a), null);
       if (best) {
         setNavMonthOverride({ year: best.year, month: best.month });
+        saveStoredActiveView({
+          activeLineId: lineId,
+          activeYear: best.year,
+          activeMonth: best.month,
+          lineMonths: { [lineId]: { year: best.year, month: best.month } },
+        });
+        await patchSettings({
+          activeLineId: lineId,
+          activeYear: best.year,
+          activeMonth: best.month,
+          lineMonths: { ...(current.lineMonths ?? {}), [lineId]: { year: best.year, month: best.month } },
+        });
       } else {
         setNavMonthOverride(null);
+        saveStoredActiveView({ activeLineId: lineId });
+        await patchSettings({ activeLineId: lineId });
       }
-      await patchSettings(
-        best
-          ? { activeLineId: lineId, activeYear: best.year, activeMonth: best.month }
-          : { activeLineId: lineId },
-      );
+      scheduleServerDbSync();
     },
-    [settings.lineMonths, session?.allowedLineId],
+    [session?.allowedLineId],
   );
 
   const saveLine = useCallback(async (line: Line) => {
@@ -979,6 +1062,57 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify({ lineId }),
       }).catch(() => {});
     }
+    scheduleServerDbSync();
+  }, []);
+
+  const clearLineRoster = useCallback(async (lineId: string) => {
+    await db.transaction(
+      'rw',
+      [db.employees, db.leave, db.rosters, db.layouts, db.allocations, db.workOrders, db.settings],
+      async () => {
+        const lineEmployees = await db.employees.where('lineId').equals(lineId).toArray();
+        const lineEmpIds = new Set(lineEmployees.map((e) => e.id));
+
+        for (const emp of lineEmployees) {
+          await db.leave.where('employeeId').equals(emp.id).delete();
+          await db.allocations.where('personId').equals(emp.id).delete();
+        }
+        await db.employees.where('lineId').equals(lineId).delete();
+        await db.rosters.where('lineId').equals(lineId).delete();
+
+        const layouts = await db.layouts.toArray();
+        for (const l of layouts) {
+          if (l.rosterId.startsWith(`${lineId}:`)) {
+            await db.layouts.delete(l.rosterId);
+          }
+        }
+
+        const allWos = await db.workOrders.toArray();
+        for (const wo of allWos) {
+          if (wo.assignedEmployeeIds?.some((id) => lineEmpIds.has(id))) {
+            await db.workOrders.put({
+              ...wo,
+              assignedEmployeeIds: wo.assignedEmployeeIds.filter((id) => !lineEmpIds.has(id)),
+              assignedEmployeeNames: wo.assignedEmployeeNames?.filter((name) =>
+                !lineEmployees.some((e) => e.name === name)
+              ) ?? [],
+            });
+          }
+        }
+
+        const current = await db.settings.get('app');
+        if (current?.importedSheets) {
+          const nextImported = { ...current.importedSheets };
+          for (const [k, v] of Object.entries(nextImported)) {
+            if (v.lineId === lineId) {
+              delete nextImported[k];
+            }
+          }
+          await db.settings.put({ ...current, importedSheets: nextImported });
+        }
+      },
+    );
+    setRoster(null);
     scheduleServerDbSync();
   }, []);
 
@@ -1240,6 +1374,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     removeCode,
     saveLine,
     removeLine,
+    clearLineRoster,
     saveLeave,
     removeLeave,
 

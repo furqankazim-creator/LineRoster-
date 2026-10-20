@@ -137,7 +137,7 @@ function Shell({ onHome }: { onHome: () => void }) {
               <div className="flex min-w-0 flex-col leading-tight">
                 <Wordmark className="text-[15px] sm:text-[17.5px] font-black group-hover:text-[var(--accent)] transition-colors" />
                 <span className="hidden md:block truncate text-[12px] font-bold text-ink-3">
-                  {line?.name} <span className="text-ink-3">·</span> {monthLabel(settings.activeYear, settings.activeMonth)}
+                  Riyadh SLV Maintenance <span className="text-ink-3">·</span> {line?.name} <span className="text-ink-3">·</span> {monthLabel(settings.activeYear, settings.activeMonth)}
                 </span>
               </div>
             </button>

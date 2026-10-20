@@ -785,9 +785,13 @@ export function buildBackupWorkbook(data: BackupData, active?: ActiveRosterHint)
     ...data,
     settings: {
       ...rawSettings,
-      activeLineId: effectiveActive?.activeLineId ?? rawSettings.activeLineId,
-      activeYear: effectiveActive?.activeYear ?? rawSettings.activeYear,
-      activeMonth: effectiveActive?.activeMonth ?? rawSettings.activeMonth,
+      ...(active
+        ? {
+            activeLineId: active.activeLineId,
+            activeYear: active.activeYear,
+            activeMonth: active.activeMonth,
+          }
+        : {}),
     },
   });
   const chunks: string[][] = [[BACKUP_MARK]];

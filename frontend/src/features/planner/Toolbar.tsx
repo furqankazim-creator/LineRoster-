@@ -15,18 +15,20 @@ interface Props {
   onRotate: () => void;
   onImport: () => void;
   onExport: () => void;
+  onReturnToImport?: () => void;
   insightsOpen: boolean;
   toggleInsights: () => void;
 }
 
 export function Toolbar({
-  brush, setBrush, onGenerate, onRotate, onImport, onExport, insightsOpen, toggleInsights,
+  brush, setBrush, onGenerate, onRotate, onImport, onExport, onReturnToImport, insightsOpen, toggleInsights,
 }: Props) {
   const {
-    settings, lines, codes, lineCodes, enableCode, setLine, setMonth, stepMonth, issues, undo, redo,
+    settings, lines, codes, lineCodes, employees, enableCode, setLine, setMonth, stepMonth, issues, undo, redo,
     canUndo, canRedo,
     updateSettings, saveStatus, saveRoster,
   } = useStore();
+  const lineEmployees = employees.filter((e) => e.lineId === settings.activeLineId);
   const [addCodeOpen, setAddCodeOpen] = useState(false);
   const toast = useToast();
   // Codes that exist but this month does not use yet — offered behind "＋".
@@ -265,6 +267,21 @@ export function Toolbar({
         <Button size="sm" onClick={redo} disabled={!canRedo} title="Redo (Ctrl+Y or Ctrl+Shift+Z)">↷</Button>
 
         <div className="ml-auto flex items-center gap-2">
+          {lineEmployees.length > 0 && onReturnToImport && (
+            <button
+              type="button"
+              onClick={onReturnToImport}
+              className="h-8 px-2.5 whitespace-nowrap shrink-0 rounded-lg text-[12px] font-bold border border-rose-500/35 bg-rose-500/10 text-rose-600 dark:text-rose-300 hover:bg-rose-500/20 hover:border-rose-500/50 transition-all shadow-xs active:scale-95 inline-flex items-center gap-1.5"
+              title="Return to initial roster import screen for this line"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              <span className="hidden sm:inline">Back to Import Screen</span>
+              <span className="sm:hidden">Reset</span>
+            </button>
+          )}
+
           {!compact && (
             <>
               <Button size="sm" variant="outline" onClick={onImport} title="Import Excel"><span className="hidden 2xl:inline">Import Excel</span><span className="2xl:hidden">Import</span></Button>
@@ -299,6 +316,17 @@ export function Toolbar({
                         {label as string}
                       </button>
                     ))}
+                    {lineEmployees.length > 0 && onReturnToImport && (
+                      <button
+                        onClick={() => { setMenuOpen(false); onReturnToImport(); }}
+                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px] font-semibold text-rose-500 hover:bg-rose-500/10"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                        </svg>
+                        <span>Back to Import Screen</span>
+                      </button>
+                    )}
                     <div className="my-1 border-t border-[var(--line)]" />
                     <div className="px-3 py-1.5 text-[11px] text-ink-3">
                       Zoom:

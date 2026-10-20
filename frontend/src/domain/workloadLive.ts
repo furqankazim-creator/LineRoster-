@@ -129,13 +129,75 @@ export function usesStandardCrew(wo: WorkOrder): boolean {
   return wo.resourceRequired === OLD_DEFAULT[normalizeWorkType(wo.workType)];
 }
 
-/** The shift a work order is planned on: its own choice, else a default by work type. */
+/** The shift a work order is planned on: its own choice, else derived from operational railway patterns. */
 export function workOrderShift(wo: WorkOrder): ShiftFamily {
-  if (wo.plannedShift) return wo.plannedShift;
+  if (wo.plannedShift && (wo.plannedShift === 'M' || wo.plannedShift === 'E' || wo.plannedShift === 'N')) {
+    return wo.plannedShift;
+  }
+  const extraShift = wo.extra?.shift || wo.extra?.plannedShift || wo.extra?.Shift;
+  if (extraShift) {
+    const s = String(extraShift).trim().toUpperCase();
+    if (s === 'M' || s.startsWith('MORN')) return 'M';
+    if (s === 'E' || s.startsWith('EVEN') || s.startsWith('AFT')) return 'E';
+    if (s === 'N' || s.startsWith('NIGH')) return 'N';
+  }
+
+  const desc = (wo.description || '').toUpperCase();
+  const loc = (wo.location || '').toUpperCase();
+  const ag = (wo.assetGroup || '').toUpperCase();
   const type = normalizeWorkType(wo.workType);
-  if (type === 'PM' && (wo.resourceRequired || 0) >= 4) return 'N'; // heavy PM → night possession
-  if (type === 'CM') return 'E';
-  return 'M';
+
+  // Explicit text keywords in description
+  if (/\b(NIGHT|NITE|POSSESSION|NON-REVENUE|ENGINEERING HOURS)\b/.test(desc)) return 'N';
+  if (/\b(EVENING|AFTERNOON|LATE)\b/.test(desc)) return 'E';
+  if (/\b(MORNING|DAY|EARLY)\b/.test(desc)) return 'M';
+
+  // 1. Heavy possessions and trackside assets (signalling, switches, permanent way, catenary, tunnel, 3rd rail)
+  // These require line clearance / track possession during engineering hours -> Night shift (N)
+  if (
+    loc.includes('TRK') ||
+    loc.includes('PW') ||
+    desc.includes('TRK') ||
+    desc.includes('TRACK') ||
+    desc.includes('RAIL') ||
+    desc.includes('SWITCH') ||
+    desc.includes('INTERLOCK') ||
+    desc.includes('POINT MACHINE') ||
+    desc.includes('CATENARY') ||
+    desc.includes('OVERHAUL') ||
+    ag === 'SIG' ||
+    ag === 'SCD' ||
+    ag === 'PW' ||
+    ag === 'TRK' ||
+    (type === 'PM' && (wo.resourceRequired || 0) >= 4)
+  ) {
+    return 'N';
+  }
+
+  // 2. Station systems, CCTV, Access control, security, corrective repairs -> Evening shift (E)
+  if (
+    ag === 'CCT' ||
+    ag === 'ACI' ||
+    ag === 'ISM' ||
+    type === 'CM' ||
+    desc.includes('CCTV') ||
+    desc.includes('ACCESS') ||
+    desc.includes('SECURITY') ||
+    desc.includes('REPAIR') ||
+    desc.includes('FAULT')
+  ) {
+    return 'E';
+  }
+
+  // 3. Station communications, surveys, daylight passenger systems -> Morning shift (M)
+  if (ag === 'DCS' || ag === 'PAS' || ag === 'PIS' || desc.includes('SURVEY') || desc.includes('INSPECTION')) {
+    return 'M';
+  }
+
+  // Fallback: deterministic distribution based on workOrderId hash if unspecified
+  const codeNum = (wo.workOrderId || '').split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+  const mod = codeNum % 3;
+  return mod === 0 ? 'M' : mod === 1 ? 'E' : 'N';
 }
 
 /** People of a line on a shift family for one day of a roster. */

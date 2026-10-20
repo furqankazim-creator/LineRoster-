@@ -301,26 +301,33 @@ export function RosterGrid({ brush, revealKey, jumpTo, onOpenImport }: Props) {
 
           {/* ------------------------------------------------------- rows */}
           {lineEmployees.length === 0 && (
-            <div className="py-20 flex flex-col items-center justify-center text-center px-4">
-              <div className="w-14 h-14 rounded-2xl bg-[var(--surface-2)] border border-[var(--line-strong)] flex items-center justify-center text-ink-3 mb-4 shadow-xs">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+            <div
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (onOpenImport) onOpenImport();
+              }}
+              className="py-16 my-8 max-w-xl mx-auto flex flex-col items-center justify-center text-center px-6 rounded-2xl border-2 border-dashed border-[var(--line-strong)] bg-[var(--surface-2)]/60 shadow-xs"
+            >
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500/20 via-blue-500/10 to-transparent border border-indigo-500/30 flex items-center justify-center text-indigo-400 mb-4 shadow-sm">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                   <polyline points="14 2 14 8 20 8" />
                   <line x1="12" y1="18" x2="12" y2="12" />
                   <line x1="9" y1="15" x2="15" y2="15" />
                 </svg>
               </div>
-              <h3 className="text-[16px] font-bold text-ink">Clean Slate (Scratch Workspace)</h3>
-              <p className="text-[13px] text-ink-3 max-w-md mt-1.5 mb-5">
-                No roster has been imported yet for this line. You have a fresh, isolated workspace ready for your own data.
+              <h3 className="text-[17px] font-black text-ink">Import Roster to Get Started</h3>
+              <p className="text-[13px] text-ink-3 max-w-md mt-1.5 mb-5 leading-relaxed">
+                Drop your Excel roster sheet (.xlsx) here or click below to import each person&apos;s shifts, rest days, rotation and leave.
               </p>
               {onOpenImport && (
                 <button
                   type="button"
                   onClick={onOpenImport}
-                  className="px-4 py-2 rounded-xl bg-[var(--accent)] text-white font-bold text-[13px] hover:opacity-90 transition-opacity shadow-sm flex items-center gap-2"
+                  className="px-5 py-2.5 rounded-xl bg-[var(--accent)] text-white font-bold text-[13px] hover:opacity-90 active:scale-95 transition-all shadow-md flex items-center gap-2"
                 >
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                     <polyline points="17 8 12 3 7 8" />
                     <line x1="12" y1="3" x2="12" y2="15" />

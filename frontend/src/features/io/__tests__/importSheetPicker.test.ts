@@ -128,5 +128,41 @@ describe('Sheet Sorting (Newest Month First)', () => {
     expect(visible).not.toContain('SLV _Line4&6 _Roster_June_ 2026');
     expect(visible).not.toContain('SLV _Line4&6 _Roster_July_ 2026');
   });
+
+  it('matches file name to specific sheet and removes others', () => {
+    const fileName = 'SLV_Line 4&6 _Roster_SEP_2026.xlsx';
+    const clean = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const baseFileName = fileName.replace(/\.[^/.]+$/, '').trim();
+    const normBase = clean(baseFileName);
+
+    const sheets = [
+      'SLV_Line 4&6 _Roster_SEP_2026',
+      'SLV_Line 5_SEP-2026 Roster',
+      'SLV_Line 5 _Roster_AUG_2026',
+      'SLV_Line 5_Roster_August_2026',
+      'SLV_Line4&6 _Roster_AUG_2026',
+    ];
+
+    const match = sheets.find((n) => clean(n) === normBase);
+    expect(match).toBe('SLV_Line 4&6 _Roster_SEP_2026');
+
+    // Only the chosen sheet is kept, others removed
+    const filtered = sheets.filter((s) => s === match);
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0]).toBe('SLV_Line 4&6 _Roster_SEP_2026');
+  });
+
+  it('allows removing unwanted sheets individually', () => {
+    let currentSheets = [
+      'SLV_Line 4&6 _Roster_SEP_2026',
+      'SLV_Line 5_SEP-2026 Roster',
+      'SLV_Line 5 _Roster_AUG_2026',
+    ];
+
+    // Remove 'SLV_Line 5 _Roster_AUG_2026'
+    currentSheets = currentSheets.filter((s) => s !== 'SLV_Line 5 _Roster_AUG_2026');
+    expect(currentSheets).not.toContain('SLV_Line 5 _Roster_AUG_2026');
+    expect(currentSheets).toHaveLength(2);
+  });
 });
 

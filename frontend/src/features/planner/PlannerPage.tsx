@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 
 import { useStore } from '@/app/store';
 import { useViewport } from '@/app/useViewport';
-import { useToast } from '@/components/ui';
+import { Button, Modal, useToast } from '@/components/ui';
 import { InsightsDrawer } from '@/features/insights/InsightsDrawer';
 import { ImportModal } from '@/features/io/ImportModal';
 import { ExportModal } from '@/features/io/ExportModal';
@@ -13,7 +13,7 @@ import { RotateModal } from './RotateModal';
 import { Toolbar } from './Toolbar';
 
 export function PlannerPage() {
-  const { undo, redo, saveRoster } = useStore();
+  const { undo, redo, saveRoster, clearLineRoster, lines, settings } = useStore();
   const toast = useToast();
 
   const [brush, setBrush] = useState<string | null>(null);
@@ -22,9 +22,12 @@ export function PlannerPage() {
   const [rotateOpen, setRotateOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [showClearModal, setShowClearModal] = useState(false);
   const viewport = useViewport();
   const [insightsOpen, setInsightsOpen] = useState(() => viewport === 'desktop');
   const [jumpTo, setJumpTo] = useState<JumpTarget | null>(null);
+
+  const activeLine = lines.find((l) => l.id === settings.activeLineId);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -62,6 +65,7 @@ export function PlannerPage() {
           onRotate={() => setRotateOpen(true)}
           onImport={() => setImportOpen(true)}
           onExport={() => setExportOpen(true)}
+          onReturnToImport={() => setShowClearModal(true)}
           insightsOpen={insightsOpen}
           toggleInsights={() => setInsightsOpen((v) => !v)}
         />
@@ -94,6 +98,41 @@ export function PlannerPage() {
         }}
       />
       <ExportModal open={exportOpen} onClose={() => setExportOpen(false)} />
+
+      {/* Return to Import Screen Confirmation Modal */}
+      {showClearModal && (
+        <Modal
+          open={showClearModal}
+          onClose={() => setShowClearModal(false)}
+          title="Return to Import Screen"
+        >
+          <div className="flex flex-col gap-4 text-ink">
+            <p className="text-[13.5px] text-ink-2 leading-relaxed">
+              Are you sure you want to return to the initial roster import screen for{' '}
+              <strong className="text-ink font-semibold">{activeLine?.name || 'this line'}</strong>?
+              This will clear the currently loaded roster for this line so you can upload a new Excel file from scratch.
+              Other lines will not be affected.
+            </p>
+            <div className="flex justify-end gap-3 pt-2">
+              <Button variant="outline" onClick={() => setShowClearModal(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                className="font-bold shadow-sm"
+                onClick={async () => {
+                  await clearLineRoster(settings.activeLineId);
+                  setShowClearModal(false);
+                  setRevealKey((k) => k + 1);
+                  toast(`Returned to initial import screen for ${activeLine?.name || 'this line'}.`, 'ok');
+                }}
+              >
+                Yes, Back to Import Screen
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

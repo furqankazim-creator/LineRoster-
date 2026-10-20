@@ -50,6 +50,7 @@ export function ImportModal({
   const [buffer, setBuffer] = useState<ArrayBuffer | null>(null);
   const [fileName, setFileName] = useState<string>('');
   const [sheets, setSheets] = useState<string[]>([]);
+  const [allWorkbookSheets, setAllWorkbookSheets] = useState<string[]>([]);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [targetLine, setTargetLine] = useState(settings.activeLineId);
   const [replace, setReplace] = useState(true);
@@ -68,6 +69,7 @@ export function ImportModal({
     setBuffer(null);
     setFileName('');
     setSheets([]);
+    setAllWorkbookSheets([]);
     setResult(null);
     setError(null);
     setShowImportedSheets(false);
@@ -152,16 +154,62 @@ export function ImportModal({
       const { listSheets } = await loadImporter();
       const names = listSheets(buf);
       setBuffer(buf);
-      setSheets(names);
+      setAllWorkbookSheets(names);
       setShowImportedSheets(false);
       setDuplicateWarning(null);
       setIsReimport(false);
 
-      if (names.length === 1) {
-        await selectSheet(buf, names[0]);
-      } else {
-        setStage('pick-sheet');
+      if (names.length === 0) {
+        throw new Error('No sheets found in this file.');
       }
+
+      // Automatically determine the single sheet to open and remove all other sheets
+      const clean = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const baseFileName = file.name.replace(/\.[^/.]+$/, '').trim();
+      const normBase = clean(baseFileName);
+
+      // 1. Exact match with file name (without extension)
+      let targetSheet = names.find((n) => clean(n) === normBase);
+
+      // 2. Partial match with file name
+      if (!targetSheet && normBase.length > 3) {
+        targetSheet = names.find((n) => {
+          const c = clean(n);
+          return c.includes(normBase) || normBase.includes(c);
+        });
+      }
+
+      // 3. Newest month matching active line
+      if (!targetSheet) {
+        const activeLineObj = lines.find((l) => l.id === targetLine || l.id === settings.activeLineId);
+        const activeName = activeLineObj?.name.toLowerCase() ?? '';
+        const isLine46 = activeName.includes('4') && activeName.includes('6');
+
+        const scored = names.map((name) => {
+          const meta = parseSheetMeta(name);
+          const score = (meta.year ?? 0) * 100 + (meta.month ?? 0);
+          const lineMatch = meta.lineName
+            ? (isLine46 && meta.lineName.includes('4') && meta.lineName.includes('6')) ||
+              meta.lineName.toLowerCase() === activeName
+            : false;
+          return { name, score, lineMatch };
+        });
+
+        const lineMatches = scored.filter((s) => s.lineMatch).sort((a, b) => b.score - a.score);
+        if (lineMatches.length > 0) {
+          targetSheet = lineMatches[0].name;
+        } else {
+          // 4. Otherwise, latest/newest month sheet in the workbook
+          scored.sort((a, b) => b.score - a.score);
+          targetSheet = scored[0]?.name;
+        }
+      }
+
+      targetSheet = targetSheet || names[0];
+
+      // Remove all other sheets so only the chosen file/sheet is open
+      setSheets([targetSheet]);
+      await selectSheet(buf, targetSheet);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not read that file.');
     }
@@ -218,6 +266,8 @@ export function ImportModal({
     if (sheet.isImported) {
       setDuplicateWarning({ sheetName: sheet.name, importedAt: sheet.importedAt });
     } else if (buffer) {
+      // Keep only this chosen sheet so others are removed
+      setSheets([sheet.name]);
       void selectSheet(buffer, sheet.name, false);
     }
   };
@@ -297,24 +347,28 @@ export function ImportModal({
       .map((id, i) => ({ ...guessShiftCode(id, lineCodeIds.size + i), scope: targetLine }));
 
     // ---- write everything in one transaction ------------------------------
-    await db.transaction('rw', db.employees, db.leave, db.rosters, db.shiftCodes, db.layouts, async () => {
-      // Auto-create any shift codes that don't exist yet
-      if (toCreate.length) {
-        await db.shiftCodes.bulkPut(toCreate.map((c) => ({ ...c, key: codeKey(c.id, c.scope) })));
-      }
+    await db.transaction(
+      'rw',
+      [db.employees, db.leave, db.rosters, db.shiftCodes, db.layouts, db.settings],
+      async () => {
+        // Auto-create any shift codes that don't exist yet
+        if (toCreate.length) {
+          await db.shiftCodes.bulkPut(toCreate.map((c) => ({ ...c, key: codeKey(c.id, c.scope) })));
+        }
 
-      if (replace) {
-        const existing = await db.employees.where('lineId').equals(targetLine).toArray();
-        await db.leave.where('employeeId').anyOf(existing.map((e) => e.id)).delete();
-        await db.employees.where('lineId').equals(targetLine).delete();
-      }
-      await db.employees.bulkPut(employees);
-      await db.leave.bulkPut(leave);
-      // Drop the cached grid so it rebuilds from the imported rules.
-      await db.rosters.delete(rid);
-      // Remember the source file's shape so Export can hand it back the same way.
-      await db.layouts.put({ rosterId: rid, layout: result.layout });
-    });
+        if (replace) {
+          const existing = await db.employees.where('lineId').equals(targetLine).toArray();
+          await db.leave.where('employeeId').anyOf(existing.map((e) => e.id)).delete();
+          await db.employees.where('lineId').equals(targetLine).delete();
+        }
+        await db.employees.bulkPut(employees);
+        await db.leave.bulkPut(leave);
+        // Drop the cached grid so it rebuilds from the imported rules.
+        await db.rosters.delete(rid);
+        // Remember the source file's shape so Export can hand it back the same way.
+        await db.layouts.put({ rosterId: rid, layout: result.layout });
+      },
+    );
 
     // Save record of imported sheet into settings
     const updatedImported = {
@@ -329,7 +383,13 @@ export function ImportModal({
         employeeCount: employees.length,
       },
     };
-    await patchSettings({ importedSheets: updatedImported });
+    await patchSettings({
+      importedSheets: updatedImported,
+      activeLineId: targetLine,
+      activeYear: result.year,
+      activeMonth: result.month,
+      lineMonths: { ...(settings.lineMonths ?? {}), [targetLine]: { year: result.year, month: result.month } },
+    });
 
     // Land on the sheet that was just imported, on the line it went into.
     await openSheet(targetLine, result.year, result.month);
@@ -350,17 +410,6 @@ export function ImportModal({
       description="Reads one of your existing roster sheets and works out each person's shift, rest days, rotation and leave."
       footer={
         <>
-          {stage === 'review' && sheets.length > 1 && (
-            <Button
-              variant="outline"
-              onClick={() => {
-                setResult(null);
-                setStage('pick-sheet');
-              }}
-            >
-              ‹ Back to sheets
-            </Button>
-          )}
           <Button
             onClick={() => {
               reset();
@@ -426,15 +475,44 @@ export function ImportModal({
                 Showing newest months first. Only the selected sheet will be imported.
               </p>
             </div>
-            {importedCount > 0 && (
-              <label className="flex items-center gap-2 cursor-pointer select-none text-[12px] text-ink-2">
-                <Switch
-                  checked={showImportedSheets}
-                  onChange={setShowImportedSheets}
-                  label={`Show previously imported (${importedCount})`}
-                />
-              </label>
-            )}
+            <div className="flex flex-wrap items-center gap-2">
+              {visibleSheets.length > 1 && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    const topSheet = visibleSheets[0]?.name;
+                    if (topSheet) {
+                      setSheets([topSheet]);
+                    }
+                  }}
+                  className="text-[11px] h-7 px-2 text-[var(--danger)] hover:bg-[var(--danger)]/10 border-[var(--line)]"
+                  title="Remove all other sheets and keep only the top / selected sheet"
+                >
+                  Remove other sheets
+                </Button>
+              )}
+              {allWorkbookSheets.length > sheets.length && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setSheets(allWorkbookSheets)}
+                  className="text-[11px] h-7 px-2 text-ink-2"
+                  title="Show all sheets from the uploaded file"
+                >
+                  Restore all ({allWorkbookSheets.length})
+                </Button>
+              )}
+              {importedCount > 0 && (
+                <label className="flex items-center gap-2 cursor-pointer select-none text-[12px] text-ink-2">
+                  <Switch
+                    checked={showImportedSheets}
+                    onChange={setShowImportedSheets}
+                    label={`Show previously imported (${importedCount})`}
+                  />
+                </label>
+              )}
+            </div>
           </div>
 
           {duplicateWarning && (
@@ -458,7 +536,10 @@ export function ImportModal({
                   size="sm"
                   variant="primary"
                   onClick={() => {
-                    if (buffer) void selectSheet(buffer, duplicateWarning.sheetName, true);
+                    if (buffer) {
+                      setSheets([duplicateWarning.sheetName]);
+                      void selectSheet(buffer, duplicateWarning.sheetName, true);
+                    }
                   }}
                 >
                   Yes, import again
@@ -469,18 +550,30 @@ export function ImportModal({
 
           {visibleSheets.length === 0 ? (
             <div className="rounded-xl border border-dashed border-[var(--line-strong)] bg-[var(--surface-2)] p-6 text-center">
-              <p className="text-[13px] font-medium text-ink">All sheets in this file were previously imported</p>
+              <p className="text-[13px] font-medium text-ink">No sheets visible in this list</p>
               <p className="mt-1 text-[11.5px] text-ink-3">
-                Turn on "Show previously imported" above to re-import any sheet.
+                Sheets were removed or previously imported.
               </p>
-              <Button
-                size="sm"
-                variant="outline"
-                className="mt-3"
-                onClick={() => setShowImportedSheets(true)}
-              >
-                Show previously imported sheets ({importedCount})
-              </Button>
+              <div className="mt-3 flex items-center justify-center gap-2">
+                {allWorkbookSheets.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    onClick={() => setSheets(allWorkbookSheets)}
+                  >
+                    Restore all sheets ({allWorkbookSheets.length})
+                  </Button>
+                )}
+                {importedCount > 0 && !showImportedSheets && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setShowImportedSheets(true)}
+                  >
+                    Show previously imported sheets ({importedCount})
+                  </Button>
+                )}
+              </div>
             </div>
           ) : (
             <div className="flex flex-col gap-1.5 max-h-[340px] overflow-y-auto pr-1">
@@ -533,6 +626,20 @@ export function ImportModal({
                           Select sheet ›
                         </span>
                       )}
+                      <button
+                        type="button"
+                        title={`Remove "${sheet.name}" from import list`}
+                        aria-label={`Remove sheet ${sheet.name}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSheets((prev) => prev.filter((s) => s !== sheet.name));
+                        }}
+                        className="rounded-md p-1.5 text-ink-3 hover:text-[var(--danger)] hover:bg-[var(--surface-3)] transition-colors"
+                      >
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
                     </div>
                   </button>
                 );

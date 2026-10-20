@@ -93,6 +93,45 @@ export interface WorkOrderImportReport {
 }
 
 export const THEME_STORAGE_KEY = 'shiftline-theme';
+export const ACTIVE_VIEW_STORAGE_KEY = 'shiftline-active-view';
+
+export interface StoredActiveView {
+  activeLineId?: string;
+  activeYear?: number;
+  activeMonth?: number;
+  lineMonths?: Record<string, { year: number; month: number }>;
+}
+
+export function getStoredActiveView(): StoredActiveView | null {
+  if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+    try {
+      const saved = localStorage.getItem(ACTIVE_VIEW_STORAGE_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch {
+      /* ignore */
+    }
+  }
+  return null;
+}
+
+export function saveStoredActiveView(view: Partial<StoredActiveView>): void {
+  if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+    try {
+      const current = getStoredActiveView() || {};
+      const merged: StoredActiveView = {
+        ...current,
+        ...view,
+        lineMonths: {
+          ...(current.lineMonths || {}),
+          ...(view.lineMonths || {}),
+        },
+      };
+      localStorage.setItem(ACTIVE_VIEW_STORAGE_KEY, JSON.stringify(merged));
+    } catch {
+      /* ignore */
+    }
+  }
+}
 
 export function getStoredTheme(): 'light' | 'dark' {
   if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
@@ -484,10 +523,8 @@ export async function ensureSeeded(options?: SeedOptions): Promise<void> {
     return;
   }
 
-  // Check if current DB is missing Line 4&6 or work orders
-  const line6EmpCount = await db.employees.where('lineId').equals('line6').count();
-  const currentWorkOrdersCount = await db.workOrders.count();
-  const isStaleOrEmpty = !existing || !existing.seeded || line6EmpCount === 0 || currentWorkOrdersCount === 0;
+  // Check if initial seeding has occurred
+  const isStaleOrEmpty = !existing || !existing.seeded;
 
   // Fast path: if local database already has valid data, return immediately for instant 0ms reload!
   if (existing?.seeded && !isStaleOrEmpty) {
@@ -597,8 +634,22 @@ export async function patchSettings(patch: Partial<Settings>): Promise<void> {
   if (patch.theme) {
     saveStoredTheme(patch.theme);
   }
+  if (patch.activeLineId || patch.activeYear || patch.activeMonth || patch.lineMonths) {
+    saveStoredActiveView({
+      activeLineId: patch.activeLineId,
+      activeYear: patch.activeYear,
+      activeMonth: patch.activeMonth,
+      lineMonths: patch.lineMonths,
+    });
+  }
   const current = await getSettings();
-  const merged: any = { ...current, ...patch, updatedAt: Date.now(), key: 'app' };
+  const merged: any = {
+    ...current,
+    ...patch,
+    lineMonths: patch.lineMonths ? { ...(current.lineMonths || {}), ...patch.lineMonths } : current.lineMonths,
+    updatedAt: Date.now(),
+    key: 'app',
+  };
   for (const k of Object.keys(merged)) {
     if (merged[k] === undefined) {
       delete merged[k];
@@ -622,6 +673,7 @@ export async function getFullBackupData() {
     db.layouts.toArray(),
   ]);
   const updatedAt = Date.now();
+  await db.settings.update('app', { updatedAt }).catch(() => {});
   return {
     lines,
     employees,
@@ -682,12 +734,23 @@ export async function importBackupData(data: any): Promise<void> {
       if (data.settings) {
         const localTheme = getStoredTheme();
         const currentLocal = await db.settings.get('app');
+        const storedView = getStoredActiveView();
+        const activeLineId = currentLocal?.activeLineId || storedView?.activeLineId || data.settings.activeLineId || DEFAULT_SETTINGS.activeLineId;
+        const lineMonths = {
+          ...(data.settings.lineMonths || {}),
+          ...(storedView?.lineMonths || {}),
+          ...(currentLocal?.lineMonths || {}),
+        };
+        const activeYear = currentLocal?.activeYear || storedView?.activeYear || lineMonths[activeLineId]?.year || data.settings.activeYear || DEFAULT_SETTINGS.activeYear;
+        const activeMonth = currentLocal?.activeMonth || storedView?.activeMonth || lineMonths[activeLineId]?.month || data.settings.activeMonth || DEFAULT_SETTINGS.activeMonth;
+
         await db.settings.put({
           ...DEFAULT_SETTINGS,
           ...data.settings,
-          activeLineId: data.settings.activeLineId || currentLocal?.activeLineId || DEFAULT_SETTINGS.activeLineId,
-          activeYear: data.settings.activeYear || currentLocal?.activeYear || DEFAULT_SETTINGS.activeYear,
-          activeMonth: data.settings.activeMonth || currentLocal?.activeMonth || DEFAULT_SETTINGS.activeMonth,
+          activeLineId,
+          activeYear,
+          activeMonth,
+          lineMonths,
           updatedAt: data.updatedAt || data.settings.updatedAt || Date.now(),
           theme: localTheme,
           key: 'app',
