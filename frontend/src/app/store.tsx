@@ -1184,6 +1184,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
    * roster has on that shift. Fixing the roster removes them on the next render.
    */
   const issues = useMemo(() => {
+    // When the active line has no employees or roster has not been loaded/imported ("Import Roster to Get Started"),
+    // clear and remove all issues — no roster exists yet to evaluate against work orders or shift rules.
+    if (!employees || employees.length === 0 || !roster || Object.keys(roster.cells || {}).length === 0) {
+      return [];
+    }
+
     // Line 4 & 6 share one team, so their shortfalls are checked together
     const pool = poolOfLineId(activeLineId);
     const poolCodes: string[] = POOL_LINES[pool].codes;
@@ -1264,7 +1270,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       : [];
 
     return [...woIssues, ...ruleIssues, ...dataIssues, ...unplacedIssue, ...elsewhereIssue];
-  }, [ruleIssues, workload, workOrders, activeLineId, activeYear, activeMonth, codes, codesByLine]);
+  }, [ruleIssues, workload, workOrders, activeLineId, activeYear, activeMonth, codes, codesByLine, employees, roster]);
 
   const uploadWorkOrders = useCallback(async (buffer: ArrayBuffer, fileName = 'work orders.xlsx') => {
     // Built-in yellow columns + any added in Setup → Excel import columns

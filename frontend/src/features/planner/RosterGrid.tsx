@@ -506,23 +506,25 @@ export function RosterGrid({ brush, revealKey, jumpTo, onOpenImport }: Props) {
 
       {/* The headcount rail sits *below* the scroll area rather than sticky
           inside it, moved downward with spacing so it never crowds rows. */}
-      <SummaryRail
-        codes={codes.filter(
-          (c) =>
-            !c.isStatus &&
-            (c.minHeadcount > 0 || days.some((d) => (d.total[c.id] ?? 0) > 0)),
-        )}
-        days={days}
-        columns={columns}
-        nameWidth={NAME_COL}
-        cellWidth={CELL_W}
-        gridWidth={gridWidth}
-        totalsWidth={2 * TOTAL_W}
-        revealKey={revealKey}
-        scrollLeft={scrollLeft}
-        issues={issues}
-        zoom={zoom}
-      />
+      {lineEmployees.length > 0 && (
+        <SummaryRail
+          codes={codes.filter(
+            (c) =>
+              !c.isStatus &&
+              (c.minHeadcount > 0 || days.some((d) => (d.total[c.id] ?? 0) > 0)),
+          )}
+          days={days}
+          columns={columns}
+          nameWidth={NAME_COL}
+          cellWidth={CELL_W}
+          gridWidth={gridWidth}
+          totalsWidth={2 * TOTAL_W}
+          revealKey={revealKey}
+          scrollLeft={scrollLeft}
+          issues={issues}
+          zoom={zoom}
+        />
+      )}
 
       {picker && (
         <CellPicker

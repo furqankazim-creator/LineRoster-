@@ -13,7 +13,7 @@ import { RotateModal } from './RotateModal';
 import { Toolbar } from './Toolbar';
 
 export function PlannerPage() {
-  const { undo, redo, saveRoster, clearLineRoster, lines, settings } = useStore();
+  const { undo, redo, saveRoster, clearLineRoster, lines, settings, employees } = useStore();
   const toast = useToast();
 
   const [brush, setBrush] = useState<string | null>(null);
@@ -28,6 +28,13 @@ export function PlannerPage() {
   const [jumpTo, setJumpTo] = useState<JumpTarget | null>(null);
 
   const activeLine = lines.find((l) => l.id === settings.activeLineId);
+
+  // Close Insights drawer when viewing the initial "Import Roster to Get Started" screen (0 employees)
+  useEffect(() => {
+    if (employees.length === 0 && insightsOpen) {
+      setInsightsOpen(false);
+    }
+  }, [employees.length, insightsOpen]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

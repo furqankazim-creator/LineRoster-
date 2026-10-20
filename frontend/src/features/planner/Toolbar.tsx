@@ -381,8 +381,11 @@ export function Toolbar({
 
           <button
             onClick={toggleInsights}
+            disabled={lineEmployees.length === 0}
             title={
-              errors > 0
+              lineEmployees.length === 0
+                ? 'No roster loaded yet — import Excel to get started.'
+                : errors > 0
                 ? `${errors} staffing / rule error${errors > 1 ? 's' : ''} (shift below minimum or rule violation). Click to view details.`
                 : warnings > 0
                 ? `${warnings} warning${warnings > 1 ? 's' : ''} to review. Click to view details.`
@@ -390,6 +393,7 @@ export function Toolbar({
             }
             className={cx(
               'flex items-center gap-2 h-7 px-2.5 rounded-md border text-[12px] font-medium transition-colors',
+              lineEmployees.length === 0 && 'opacity-60 cursor-not-allowed',
               insightsOpen
                 ? 'border-[var(--accent)] text-ink bg-[var(--surface-3)]'
                 : 'border-[var(--line-strong)] text-ink-2 hover:text-ink',

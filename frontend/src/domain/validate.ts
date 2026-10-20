@@ -28,6 +28,9 @@ export interface ValidateInput {
  */
 export function validate(input: ValidateInput): Issue[] {
   const { roster, employees, codes, leaveBlocks = [], nDays, maxConsecutive = 6 } = input;
+  if (!employees || employees.length === 0 || !roster || Object.keys(roster.cells || {}).length === 0) {
+    return [];
+  }
 
   const issues: Issue[] = [];
   const byId = new Map(employees.map((e) => [e.id, e]));
