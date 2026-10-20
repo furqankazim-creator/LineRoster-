@@ -8,7 +8,7 @@ import React, {
   useState,
 } from 'react';
 
-import { importBackupData, setActiveDatabase } from '@/data/db';
+import { getSettings, importBackupData, setActiveDatabase } from '@/data/db';
 import { useToast } from '@/components/ui';
 
 import { playNotificationChime } from './sound';
@@ -459,10 +459,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (Array.isArray(msg.users)) {
               updatePresenceFromList(msg.users);
             }
-            if (msg.serverDb) {
-              if (sessionRef.current?.role === 'supervisor') {
-                importBackupData(msg.serverDb).catch(() => {});
-              }
+            if (msg.serverDb && sessionRef.current?.role === 'supervisor') {
+              const serverTime = msg.serverDb.updatedAt || 0;
+              getSettings().then((localSettings) => {
+                const localTime = localSettings?.updatedAt || 0;
+                if (serverTime > localTime) {
+                  importBackupData(msg.serverDb).catch(() => {});
+                }
+              }).catch(() => {});
             }
           } else if (msg.type === 'SERVER_DB_SYNC') {
             if (sessionRef.current?.role !== 'supervisor') {
@@ -474,7 +478,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               return;
             }
             if (msg.data) {
-              importBackupData(msg.data).catch(() => {});
+              const serverTime = msg.data.updatedAt || 0;
+              getSettings().then((localSettings) => {
+                const localTime = localSettings?.updatedAt || 0;
+                if (serverTime > localTime) {
+                  importBackupData(msg.data).catch(() => {});
+                }
+              }).catch(() => {});
             }
           } else if (msg.type === 'NOTIFICATIONS_CLEAR') {
             setNotifications([]);

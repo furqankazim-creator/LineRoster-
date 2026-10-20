@@ -85,8 +85,8 @@ interface RosterStore {
   canUndo: boolean;
   canRedo: boolean;
   saveStatus: 'saved' | 'saving';
-  /** Persists the month and downloads an Excel backup; resolves to the filename. */
-  saveRoster: () => Promise<string>;
+  /** Persists the month and database backup; optionally downloads an Excel backup if download: true. */
+  saveRoster: (options?: { download?: boolean }) => Promise<string>;
 
   setMonth(year: number, month: number): void;
   /** Opens a specific line at a specific month — used after an import. */
@@ -173,16 +173,33 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [session?.role, session?.workspaceMode, session?.allowedLineId]);
 
   const rawSettings = useLiveQuery(() => db.settings.get('app'), [], undefined);
+  const [navMonthOverride, setNavMonthOverride] = useState<{
+    year: number;
+    month: number;
+  } | null>(null);
+
+  const activeYear = navMonthOverride?.year ?? rawSettings?.activeYear ?? DEFAULT_SETTINGS.activeYear;
+  const activeMonth = navMonthOverride?.month ?? rawSettings?.activeMonth ?? DEFAULT_SETTINGS.activeMonth;
+
+  useEffect(() => {
+    if (rawSettings && navMonthOverride) {
+      if (rawSettings.activeYear === navMonthOverride.year && rawSettings.activeMonth === navMonthOverride.month) {
+        setNavMonthOverride(null);
+      }
+    }
+  }, [rawSettings?.activeYear, rawSettings?.activeMonth, navMonthOverride]);
+
   const settings: Settings = useMemo(() => {
     const activeTheme = getStoredTheme();
     const base = { ...DEFAULT_SETTINGS, theme: activeTheme };
-    if (!rawSettings) return base;
+    const merged = rawSettings ? { ...base, ...rawSettings, theme: rawSettings.theme || activeTheme } : base;
     return {
-      ...base,
-      ...rawSettings,
-      theme: rawSettings.theme || activeTheme,
+      ...merged,
+      activeYear,
+      activeMonth,
     };
-  }, [rawSettings]);
+  }, [rawSettings, activeYear, activeMonth]);
+
   const allLines = useLiveQuery(() => db.lines.orderBy('order').toArray(), [], []) ?? [];
   const lines = useMemo(() => {
     if (session?.allowedLineId && session.allowedLineId !== 'all') {
@@ -192,6 +209,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [allLines, session?.allowedLineId]);
   const allCodes = useLiveQuery(() => db.shiftCodes.orderBy('order').toArray(), [], []) ?? [];
   const leave = useLiveQuery(() => db.leave.toArray(), [], []) ?? [];
+  const workOrders = useLiveQuery(() => db.workOrders.toArray(), [], []) ?? [];
+  const resourceRequirements = useLiveQuery(() => db.resourceRequirements.toArray(), [], []) ?? [];
+  const allEmployees = useLiveQuery(() => db.employees.toArray(), [], []) ?? [];
+  const allRosters = useLiveQuery(() => db.rosters.toArray(), [], []) ?? [];
 
   const activeLineId = useMemo(() => {
     if (session?.allowedLineId && session.allowedLineId !== 'all') {
@@ -199,7 +220,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
     return settings.activeLineId;
   }, [session?.allowedLineId, settings.activeLineId]);
-  const { activeYear, activeMonth } = settings;
 
   const rawEmployees = useLiveQuery(
     async () =>
@@ -299,6 +319,37 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
     }
 
+    // Fast in-memory path: employees and rosters are already available in state
+    const inMemoryEmployees = employees.length > 0 && employees[0].lineId === activeLineId ? employees : null;
+    const inMemoryStored = allRosters.find((r) => r.id === id);
+
+    if (inMemoryEmployees && (inMemoryStored || allRosters.length > 0)) {
+      const validEmpIds = new Set(inMemoryEmployees.map((e) => e.id));
+      const cleanOverrides: Record<string, Record<number, string>> = {};
+      for (const [empId, val] of Object.entries(inMemoryStored?.overrides ?? {})) {
+        if (validEmpIds.has(empId)) cleanOverrides[empId] = val;
+      }
+      const cleanExtraHours: Record<string, Record<number, number>> = {};
+      for (const [empId, val] of Object.entries(inMemoryStored?.extraHours ?? {})) {
+        if (validEmpIds.has(empId)) cleanExtraHours[empId] = val;
+      }
+
+      const lineLeaveBlocks = lineLeave.filter((l) => validEmpIds.has(l.employeeId));
+
+      const next = generateMonth({
+        year: activeYear,
+        month: activeMonth,
+        lineId: activeLineId,
+        employees: inMemoryEmployees,
+        leaveBlocks: lineLeaveBlocks,
+        overrides: cleanOverrides,
+        extraHours: cleanExtraHours,
+      });
+
+      setRoster(next);
+      return;
+    }
+
     (async () => {
       // Direct query for the active line to prevent any race condition with useLiveQuery
       const currentEmployees = (
@@ -352,29 +403,56 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       if (cancelled) return;
       setRoster(next);
-
-      // Persist a month the first time it is opened.
-      if (!stored) {
-        lastPersistedTimeRef.current = next.updatedAt;
-        await db.rosters.put(next);
-      }
+      // NOTE: Do NOT do db.rosters.put(next) here.
+      // Browsing an unedited month must not write to disk, which would invalidate live queries and cause lag.
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [ready, id, activeLineId, activeYear, activeMonth, employees, lineLeave]);
+  }, [ready, id, activeLineId, activeYear, activeMonth, employees, lineLeave, allRosters]);
 
   // Synchronize when an external action (like full Excel import or JSON backup restore) alters the active roster in DB
   useEffect(() => {
     if (!storedRoster) return;
+    if (storedRoster.id !== id) return;
     if (storedRoster.updatedAt === lastPersistedTimeRef.current) return;
+
+    // Check if storedRoster contains current line employees
+    const lineEmpIds = new Set(employees.map((e) => e.id));
+    const hasCurrentEmps = Object.keys(storedRoster.cells || {}).some((k) => lineEmpIds.has(k));
+    if (!hasCurrentEmps && employees.length > 0) {
+      // Stored roster has orphaned employee IDs that do not match current employees of this line.
+      // Re-generate for current employees rather than displaying empty dashes!
+      const validEmpIds = new Set(employees.map((e) => e.id));
+      const cleanOverrides: Record<string, Record<number, string>> = {};
+      for (const [empId, val] of Object.entries(storedRoster.overrides ?? {})) {
+        if (validEmpIds.has(empId)) cleanOverrides[empId] = val;
+      }
+      const cleanExtraHours: Record<string, Record<number, number>> = {};
+      for (const [empId, val] of Object.entries(storedRoster.extraHours ?? {})) {
+        if (validEmpIds.has(empId)) cleanExtraHours[empId] = val;
+      }
+      const lineLeaveBlocks = lineLeave.filter((l) => validEmpIds.has(l.employeeId));
+      const next = generateMonth({
+        year: activeYear,
+        month: activeMonth,
+        lineId: activeLineId,
+        employees,
+        leaveBlocks: lineLeaveBlocks,
+        overrides: cleanOverrides,
+        extraHours: cleanExtraHours,
+      });
+      setRoster(next);
+      return;
+    }
+
     setRoster(storedRoster);
     undoStack.current = [];
     redoStack.current = [];
     setUndoCount(0);
     setRedoCount(0);
-  }, [storedRoster?.updatedAt]);
+  }, [storedRoster?.updatedAt, storedRoster?.id, id, employees, lineLeave, activeYear, activeMonth, activeLineId]);
 
   const persist = useCallback(async (next: RosterMonth) => {
     setSaveStatus('saving');
@@ -389,25 +467,41 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   /**
-   * Explicit Save: persist the month (already auto-saved on every edit) and
-   * also hand the supervisor a file — the full Excel backup, which restores
-   * exactly. Returns the downloaded filename.
+   * Explicit Save: persist the month and database backup (also synced to server).
+   * Does NOT download a file unless options.download is explicitly true.
+   * Returns the downloaded filename if download was requested.
    */
-  const saveRoster = useCallback(async () => {
-    if (!roster) return '';
-    setSaveStatus('saving');
-    await db.rosters.put(roster);
-    setSaveStatus('saved');
-    const [{ getFullBackupData }, { downloadBackupXlsx }] = await Promise.all([
-      import('@/data/db'),
-      import('@/io/exportXlsx'),
-    ]);
-    return downloadBackupXlsx(await getFullBackupData(), {
-      activeLineId: roster.lineId,
-      activeYear: roster.year,
-      activeMonth: roster.month,
-    });
-  }, [roster]);
+  const saveRoster = useCallback(
+    async (options?: { download?: boolean }): Promise<string> => {
+      if (!roster) return '';
+      setSaveStatus('saving');
+      const updatedRoster: RosterMonth = {
+        ...roster,
+        updatedAt: Date.now(),
+      };
+      lastPersistedTimeRef.current = updatedRoster.updatedAt;
+      setRoster(updatedRoster);
+      await db.rosters.put(updatedRoster);
+      try {
+        scheduleServerDbSync();
+      } catch {}
+      setSaveStatus('saved');
+
+      if (options?.download) {
+        const [{ getFullBackupData }, { downloadBackupXlsx }] = await Promise.all([
+          import('@/data/db'),
+          import('@/io/exportXlsx'),
+        ]);
+        return downloadBackupXlsx(await getFullBackupData(), {
+          activeLineId: roster.lineId,
+          activeYear: roster.year,
+          activeMonth: roster.month,
+        });
+      }
+      return '';
+    },
+    [roster],
+  );
 
   const commit = useCallback(
     (next: RosterMonth) => {
@@ -481,12 +575,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   // ---- actions ----------------------------------------------------------
   /** Moving month also records where this line is, for when we come back. */
   const goToMonth = useCallback(
-    (year: number, month: number) =>
-      patchSettings({
+    (year: number, month: number) => {
+      setNavMonthOverride({ year, month });
+      void patchSettings({
         activeYear: year,
         activeMonth: month,
         lineMonths: { ...(settings.lineMonths ?? {}), [activeLineId]: { year, month } },
-      }),
+      });
+    },
     [activeLineId, settings.lineMonths],
   );
 
@@ -498,6 +594,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   /** Shows the sheet that was just imported, and remembers it for that line. */
   const openSheet = useCallback(
     async (lineId: string, year: number, month: number) => {
+      setNavMonthOverride({ year, month });
       await patchSettings({
         activeLineId: lineId,
         activeYear: year,
@@ -625,6 +722,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         await db.rosters.delete(rosterId(activeLineId, targetYear, targetMonth));
       });
 
+      setNavMonthOverride({ year: targetYear, month: targetMonth });
       await patchSettings({ activeYear: targetYear, activeMonth: targetMonth });
       scheduleServerDbSync();
     },
@@ -791,6 +889,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
       const remembered = settings.lineMonths?.[lineId];
       if (remembered) {
+        setNavMonthOverride({ year: remembered.year, month: remembered.month });
         await patchSettings({
           activeLineId: lineId,
           activeYear: remembered.year,
@@ -803,6 +902,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const withEdits = rosters.filter((r) => Object.keys(r.overrides ?? {}).length > 0);
       const best = (withEdits.length ? withEdits : rosters)
         .reduce<typeof rosters[number] | null>((a, b) => (!a || b.updatedAt > a.updatedAt ? b : a), null);
+      if (best) {
+        setNavMonthOverride({ year: best.year, month: best.month });
+      } else {
+        setNavMonthOverride(null);
+      }
       await patchSettings(
         best
           ? { activeLineId: lineId, activeYear: best.year, activeMonth: best.month }
@@ -888,15 +992,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     scheduleServerDbSync();
   }, []);
 
-  // Work Orders & Workload Integration
-  const workOrders = useLiveQuery(() => db.workOrders.toArray(), [], []) ?? [];
-  const resourceRequirements = useLiveQuery(() => db.resourceRequirements.toArray(), [], []) ?? [];
-
-  // Every line's people and stored months: work orders span all lines and months,
-  // not just the one open in the Planner.
-  const allEmployees = useLiveQuery(() => db.employees.toArray(), [], []) ?? [];
-  const allRosters = useLiveQuery(() => db.rosters.toArray(), [], []) ?? [];
-
   const codesByLine = useMemo(() => {
     const map: Record<string, ShiftCode[]> = {};
     for (const c of allCodes) if (c.scope) (map[c.scope] ??= []).push(c);
@@ -913,18 +1008,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     // the live grid; any other month is rebuilt the same way the Planner loads
     // it (people's rules + leave + saved hand edits).
     const getRoster = (lineId: string, year: number, month: number): RosterMonth | null => {
-      if (lineId === activeLineId && year === activeYear && month === activeMonth && roster) return roster;
       const people = employeesByLine[lineId] ?? [];
+      const peopleIds = new Set(people.map((e) => e.id));
+      if (roster && roster.lineId === lineId && roster.year === year && roster.month === month) {
+        const hasMatching = Object.keys(roster.cells || {}).some((k) => peopleIds.has(k));
+        if (hasMatching || people.length === 0) return roster;
+      }
       if (!people.length || !year || !month) return null;
       const key = rosterId(lineId, year, month);
       let r = cache.get(key);
       if (!r) {
         const stored = storedById.get(key);
-        const ids = new Set(people.map((e) => e.id));
+        const storedHasMatching = stored && Object.keys(stored.cells || {}).some((k) => peopleIds.has(k));
+        const effectiveStored = storedHasMatching ? stored : undefined;
         r = generateMonth({
           year, month, lineId, employees: people,
-          leaveBlocks: leave.filter((l) => ids.has(l.employeeId)),
-          overrides: stored?.overrides ?? {}, extraHours: stored?.extraHours ?? {},
+          leaveBlocks: leave.filter((l) => peopleIds.has(l.employeeId)),
+          overrides: effectiveStored?.overrides ?? {}, extraHours: effectiveStored?.extraHours ?? {},
         });
         cache.set(key, r);
       }
@@ -942,7 +1042,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       );
     };
     return { workload: result, staffForShift: forShift };
-  }, [workOrders, resourceRequirements, allEmployees, allRosters, leave, codesByLine, roster, activeLineId, activeYear, activeMonth]);
+  }, [workOrders, resourceRequirements, allEmployees, allRosters, leave, codesByLine, roster?.id, roster?.updatedAt]);
 
   /**
    * Planner issues = roster rules + Work Orders shortfalls for the open line &

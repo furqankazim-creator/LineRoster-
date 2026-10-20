@@ -4,7 +4,7 @@ import { useStore } from '@/app/store';
 import { COLOR_SWATCHES, TONE_OPTIONS, codeVars, isHexColor } from '@/app/tones';
 import { Button, Field, Input, Modal, Select, Switch, cx, useToast } from '@/components/ui';
 import { exportBackup, importBackup, importBackupData, newId, resetToSeed } from '@/data/db';
-import { WEEKDAY_LABELS } from '@/domain/calendar';
+import { MONTH_NAMES, WEEKDAY_LABELS, monthLabel } from '@/domain/calendar';
 import { formatHours, shiftHours } from '@/domain/hours';
 import type { Employee, Line, ResourceRequirement, ShiftCode, Weekday } from '@/domain/types';
 import { normalizeWorkType } from '@/domain/workload';
@@ -19,7 +19,7 @@ import type { AssignedPasscode, UserRole, WorkspaceMode } from '@/features/auth/
 export function SetupPage() {
   const { session } = useAuth();
   const {
-    codes, lineCodes, lines, settings, employees, saveCode, removeCode, saveLine, removeLine, updateSettings,
+    lineCodes, lines, settings, employees, saveCode, removeCode, saveLine, removeLine, updateSettings,
     resourceRequirements, saveResourceRequirement,
   } = useStore();
   const toast = useToast();
@@ -291,13 +291,21 @@ export function SetupPage() {
                       import('@/io/exportXlsx'),
                     ]);
                     const data = await getFullBackupData();
-                    const filename = downloadBackupXlsx(data);
+                    const activeLineId = settings.activeLineId || lines[0]?.id || 'line6';
+                    const remembered = settings.lineMonths?.[activeLineId];
+                    const activeYear = remembered?.year ?? settings.activeYear;
+                    const activeMonth = remembered?.month ?? settings.activeMonth;
+                    const filename = downloadBackupXlsx(data, {
+                      activeLineId,
+                      activeYear,
+                      activeMonth,
+                    });
                     toast(`Excel backup downloaded: ${filename}`, 'ok');
                   } catch (err) {
                     toast(err instanceof Error ? err.message : 'Excel export failed.', 'error');
                   }
                 }}
-                title="Download all rosters, employees, shift codes, and lines in an Excel spreadsheet (.xlsx)"
+                title="Download full Excel backup (.xlsx) with all rosters, employees, and shift codes"
                 className="font-medium"
               >
                 Download backup (Excel .xlsx)
@@ -309,19 +317,27 @@ export function SetupPage() {
                 onClick={async () => {
                   try {
                     const json = await exportBackup();
+                    const activeLineId = settings.activeLineId || lines[0]?.id || 'line6';
+                    const remembered = settings.lineMonths?.[activeLineId];
+                    const activeYear = remembered?.year ?? settings.activeYear;
+                    const activeMonth = remembered?.month ?? settings.activeMonth;
+                    const line = lines.find((l) => l.id === activeLineId);
+                    const lineSlug = line ? `${line.name.replace(/\s+/g, '_')}_` : '';
+                    const monthName = MONTH_NAMES[activeMonth - 1] ?? `Month_${activeMonth}`;
+                    const filename = `shiftline-backup-${lineSlug}${monthName}-${activeYear}.json`;
                     const blob = new Blob([json], { type: 'application/json' });
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = `shiftline-backup-${new Date().toISOString().slice(0, 10)}.json`;
+                    a.download = filename;
                     a.click();
                     URL.revokeObjectURL(url);
-                    toast('JSON backup downloaded successfully.', 'ok');
+                    toast(`JSON backup downloaded: ${filename}`, 'ok');
                   } catch (err) {
                     toast(err instanceof Error ? err.message : 'Export failed.', 'error');
                   }
                 }}
-                title="Download complete raw database dump as JSON"
+                title={`Download complete database dump as JSON for ${monthLabel(settings.activeYear, settings.activeMonth)}`}
               >
                 Download backup (JSON)
               </Button>

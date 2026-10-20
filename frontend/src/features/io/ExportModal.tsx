@@ -3,7 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useStore } from '@/app/store';
 import { Button, Modal, useToast } from '@/components/ui';
 import { db, exportBackup } from '@/data/db';
-import { monthLabel } from '@/domain/calendar';
+import { MONTH_NAMES, monthLabel } from '@/domain/calendar';
 import { rosterId } from '@/domain/generator';
 
 
@@ -20,6 +20,25 @@ export function ExportModal({ open, onClose }: { open: boolean; onClose: () => v
   );
 
   const options = [
+    {
+      key: 'backup-xlsx',
+      title: 'Save backup data export (.xlsx)',
+      body: 'Full Excel backup workbook containing all lines, rosters, employees, and settings. Can be re-imported into ShiftLine anytime to restore the entire system.',
+      action: async () => {
+        if (!roster) return;
+        const [{ getFullBackupData }, { downloadBackupXlsx }] = await Promise.all([
+          import('@/data/db'),
+          import('@/io/exportXlsx'),
+        ]);
+        const filename = downloadBackupXlsx(await getFullBackupData(), {
+          activeLineId: roster.lineId,
+          activeYear: roster.year,
+          activeMonth: roster.month,
+        });
+        toast(`Backup exported: ${filename}`, 'ok');
+        onClose();
+      },
+    },
     ...(stored
       ? [{
           key: 'original',
@@ -74,14 +93,17 @@ export function ExportModal({ open, onClose }: { open: boolean; onClose: () => v
       body: 'Everything — all lines, people, rotation rules, leave and saved months. Restore it from Setup.',
       action: async () => {
         const json = await exportBackup();
+        const lineSlug = line ? `${line.name.replace(/\s+/g, '_')}_` : '';
+        const monthName = MONTH_NAMES[settings.activeMonth - 1] ?? `Month_${settings.activeMonth}`;
+        const filename = `shiftline-backup-${lineSlug}${monthName}-${settings.activeYear}.json`;
         const blob = new Blob([json], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `shiftline-backup-${new Date().toISOString().slice(0, 10)}.json`;
+        a.download = filename;
         a.click();
         URL.revokeObjectURL(url);
-        toast('Backup saved.', 'ok');
+        toast(`Backup exported: ${filename}`, 'ok');
         onClose();
       },
     },

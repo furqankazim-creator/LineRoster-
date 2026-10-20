@@ -40,7 +40,10 @@ let lastCloudDbUpdatedAt = 0;
 async function loadServerDbAsync() {
   try {
     const apiPort = process.env.PORT || '4400';
-    const r = await fetch(`http://127.0.0.1:${apiPort}/api/collab/db`);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 600);
+    const r = await fetch(`http://127.0.0.1:${apiPort}/api/collab/db`, { signal: controller.signal });
+    clearTimeout(timeoutId);
     if (r.ok) {
       const j = (await r.json()) as { ok?: boolean; data?: any };
       if (j?.data && Array.isArray(j.data.lines) && j.data.lines.length > 0) {
@@ -224,7 +227,10 @@ async function pollCloudChanges() {
   if (sseClients.size === 0) return;
   try {
     const apiPort = process.env.PORT || '4400';
-    const metaRes = await fetch(`http://127.0.0.1:${apiPort}/api/collab/cloud-meta`);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 600);
+    const metaRes = await fetch(`http://127.0.0.1:${apiPort}/api/collab/cloud-meta`, { signal: controller.signal });
+    clearTimeout(timeoutId);
     if (!metaRes.ok) return;
     const meta = (await metaRes.json()) as {
       ok?: boolean;

@@ -36,15 +36,26 @@ app.use((err: unknown, _req: express.Request, res: express.Response, _next: expr
 });
 
 async function main() {
-  try {
-    await mongoose.connect(config.mongoUri, { serverSelectionTimeoutMS: 4000 });
-  } catch (err: any) {
-    if (!config.mongoUri.includes('127.0.0.1') && !config.mongoUri.includes('localhost')) {
-      console.warn(`\n⚠️  Could not connect to remote MongoDB cluster: ${err?.message}`);
-      console.warn('🔄 Falling back to local persistent MongoDB at mongodb://127.0.0.1:27018/shiftline...\n');
-      await mongoose.connect('mongodb://127.0.0.1:27018/shiftline');
-    } else {
-      throw err;
+  let connected = false;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      await mongoose.connect(config.mongoUri, { serverSelectionTimeoutMS: 4000 });
+      connected = true;
+      break;
+    } catch (err: any) {
+      if (attempt < 3 && (config.mongoUri.includes('127.0.0.1') || config.mongoUri.includes('localhost'))) {
+        await new Promise((r) => setTimeout(r, 1000));
+        continue;
+      }
+      if (!config.mongoUri.includes('127.0.0.1') && !config.mongoUri.includes('localhost')) {
+        console.warn(`\n⚠️  Could not connect to remote MongoDB cluster: ${err?.message}`);
+        console.warn('🔄 Falling back to local persistent MongoDB at mongodb://127.0.0.1:27018/shiftline...\n');
+        await mongoose.connect('mongodb://127.0.0.1:27018/shiftline');
+        connected = true;
+        break;
+      } else {
+        throw err;
+      }
     }
   }
   console.log('MongoDB connected');

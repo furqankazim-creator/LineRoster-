@@ -43,7 +43,7 @@ export function PlannerPage() {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
         void saveRoster()
-          .then((f) => toast(f ? `Saved. Downloaded ${f}` : 'Saved.', 'ok'))
+          .then(() => toast('Backup saved.', 'ok'))
           .catch((err) => toast(err instanceof Error ? err.message : 'Save failed.', 'error'));
       }
       if (e.key === 'Escape') setBrush(null);

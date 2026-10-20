@@ -484,11 +484,52 @@ export async function ensureSeeded(options?: SeedOptions): Promise<void> {
     return;
   }
 
+  // Check if current DB is missing Line 4&6 or work orders
+  const line6EmpCount = await db.employees.where('lineId').equals('line6').count();
+  const currentWorkOrdersCount = await db.workOrders.count();
+  const isStaleOrEmpty = !existing || !existing.seeded || line6EmpCount === 0 || currentWorkOrdersCount === 0;
+
+  // Fast path: if local database already has valid data, return immediately for instant 0ms reload!
+  if (existing?.seeded && !isStaleOrEmpty) {
+    if (typeof window !== 'undefined' && typeof fetch !== 'undefined') {
+      setTimeout(async () => {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 2000);
+          const res = await fetch('/api/collab/db', { signal: controller.signal });
+          clearTimeout(timeoutId);
+          if (res.ok) {
+            const json = await res.json();
+            if (json.ok && json.data && Array.isArray(json.data.lines) && json.data.lines.length > 0) {
+              const current = await db.settings.get('app');
+              const localTime = current?.updatedAt || 0;
+              const serverTime = json.data.updatedAt || 0;
+              if (serverTime > localTime) {
+                await importBackupData(json.data);
+              } else if (localTime > serverTime && getActiveDbName() === 'shiftline') {
+                const backup = await getFullBackupData();
+                await fetch('/api/collab/db', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(backup),
+                });
+              }
+            }
+          }
+        } catch {}
+      }, 50);
+    }
+    return;
+  }
+
   // 1. Try to fetch the master database from the server (so all browsers / sessions sync together)
   let serverData: any = null;
   if (typeof window !== 'undefined' && typeof fetch !== 'undefined') {
     try {
-      const res = await fetch('/api/collab/db');
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 1500);
+      const res = await fetch('/api/collab/db', { signal: controller.signal });
+      clearTimeout(timeoutId);
       if (res.ok) {
         const json = await res.json();
         if (json.ok && json.data && Array.isArray(json.data.lines) && json.data.lines.length > 0) {
@@ -500,11 +541,6 @@ export async function ensureSeeded(options?: SeedOptions): Promise<void> {
     }
   }
 
-  // Check if current DB is missing Line 4&6 or work orders
-  const line6EmpCount = await db.employees.where('lineId').equals('line6').count();
-  const currentWorkOrdersCount = await db.workOrders.count();
-  const isStaleOrEmpty = !existing || !existing.seeded || line6EmpCount === 0 || currentWorkOrdersCount === 0;
-
   // 2. On Vercel or offline without backend server: use defaultDatabase as authoritative initial seed
   if (!serverData && isStaleOrEmpty) {
     serverData = defaultDatabase;
@@ -514,37 +550,20 @@ export async function ensureSeeded(options?: SeedOptions): Promise<void> {
   if (serverData) {
     const localUpdatedAt = existing?.updatedAt || 0;
     const serverUpdatedAt = serverData.updatedAt || 0;
-    if (isStaleOrEmpty || serverUpdatedAt >= localUpdatedAt) {
-      // New browser session / Vercel initial load / stale empty state: adopt DB immediately!
+    if (isStaleOrEmpty || serverUpdatedAt > localUpdatedAt) {
       await importBackupData(serverData);
       return;
-    } else if (localUpdatedAt > serverUpdatedAt) {
-      // Local changes are newer: push to server if supervisor
-      if (getActiveDbName() === 'shiftline') {
-        try {
-          const backup = await getFullBackupData();
-          await fetch('/api/collab/db', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(backup),
-          });
-        } catch {}
-      }
+    } else if (localUpdatedAt > serverUpdatedAt && getActiveDbName() === 'shiftline') {
+      try {
+        const backup = await getFullBackupData();
+        await fetch('/api/collab/db', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(backup),
+        });
+      } catch {}
       return;
     }
-  }
-
-  // 4. If local already has data and server is empty:
-  if (existing?.seeded && !serverData && getActiveDbName() === 'shiftline' && typeof window !== 'undefined' && typeof fetch !== 'undefined') {
-    try {
-      const backup = await getFullBackupData();
-      await fetch('/api/collab/db', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(backup),
-      });
-    } catch {}
-    return;
   }
 
   if (isStaleOrEmpty) {
@@ -666,9 +685,9 @@ export async function importBackupData(data: any): Promise<void> {
         await db.settings.put({
           ...DEFAULT_SETTINGS,
           ...data.settings,
-          activeLineId: currentLocal?.activeLineId || data.settings.activeLineId || DEFAULT_SETTINGS.activeLineId,
-          activeYear: currentLocal?.activeYear || data.settings.activeYear || DEFAULT_SETTINGS.activeYear,
-          activeMonth: currentLocal?.activeMonth || data.settings.activeMonth || DEFAULT_SETTINGS.activeMonth,
+          activeLineId: data.settings.activeLineId || currentLocal?.activeLineId || DEFAULT_SETTINGS.activeLineId,
+          activeYear: data.settings.activeYear || currentLocal?.activeYear || DEFAULT_SETTINGS.activeYear,
+          activeMonth: data.settings.activeMonth || currentLocal?.activeMonth || DEFAULT_SETTINGS.activeMonth,
           updatedAt: data.updatedAt || data.settings.updatedAt || Date.now(),
           theme: localTheme,
           key: 'app',

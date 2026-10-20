@@ -120,17 +120,17 @@ export function Toolbar({
             variant="outline"
             onClick={async () => {
               try {
-                const f = await saveRoster();
-                toast(f ? `Backup downloaded: ${f}` : 'Backup saved.', 'ok');
+                await saveRoster();
+                toast('Backup saved successfully.', 'ok');
               } catch (err) {
                 toast(err instanceof Error ? err.message : 'Save failed.', 'error');
               }
             }}
-            title="Export full Excel backup file (.xlsx) with all lines and rosters"
+            title="Save changes and backup to database"
             className="flex items-center gap-1.5"
           >
             <DiskIcon />
-            <span className="hidden lg:inline">Save Backup (.xlsx)</span>
+            <span className="hidden lg:inline">Save Backup</span>
           </Button>
           <span
             className="hidden sm:inline-flex items-center gap-1 text-[11px] text-ink-3 font-medium bg-[var(--surface-2)] px-2 py-0.5 rounded border border-[var(--line)]"

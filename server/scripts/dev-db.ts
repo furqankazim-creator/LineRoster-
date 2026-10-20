@@ -32,13 +32,35 @@ try {
 
 const dbDir = path.resolve(__dirname, '../data/db');
 
-// Function to check if a port is ready
+// Function to check if a port is accepting TCP connections
 function isPortReady(port: number): Promise<boolean> {
   return new Promise((resolve) => {
     const s = net.createConnection(port, '127.0.0.1');
     s.on('connect', () => { s.destroy(); resolve(true); });
     s.on('error', () => { s.destroy(); resolve(false); });
   });
+}
+
+// Function to check if MongoDB is actually responding to queries
+async function isMongoAlive(port: number, timeoutMs = 1200): Promise<boolean> {
+  let conn: mongoose.Connection | null = null;
+  try {
+    conn = await mongoose.createConnection(`mongodb://127.0.0.1:${port}/admin`, {
+      serverSelectionTimeoutMS: timeoutMs,
+      connectTimeoutMS: timeoutMs,
+    }).asPromise();
+    if (conn.db) {
+      await conn.db.admin().ping();
+      return true;
+    }
+    return false;
+  } catch {
+    return false;
+  } finally {
+    if (conn) {
+      try { await conn.close(); } catch {}
+    }
+  }
 }
 
 let mongodProc: ReturnType<typeof spawn> | null = null;
@@ -67,11 +89,19 @@ if (!isLocalMongo) {
 if (isLocalMongo) {
   const activeParsed = new URL(activeMongoUri);
   const mongoPort = Number(activeParsed.port || 27017);
-  const alreadyUp = await isPortReady(mongoPort);
+  const alreadyUp = await isMongoAlive(mongoPort);
 
   if (alreadyUp) {
     console.log(`Using MongoDB already running on port ${mongoPort}.`);
   } else {
+    // If something is occupying the port but not responding as MongoDB, free it
+    if (await isPortReady(mongoPort)) {
+      try {
+        execSync(`fuser -k ${mongoPort}/tcp`, { stdio: 'ignore' });
+        await new Promise((r) => setTimeout(r, 400));
+      } catch {}
+    }
+
     fs.mkdirSync(dbDir, { recursive: true });
     // Clean stale locks if no mongod process is running
     for (const lock of ['mongod.lock', 'WiredTiger.lock']) {
@@ -92,17 +122,17 @@ if (isLocalMongo) {
       detached: false,
     });
 
-    // Wait for the port to become ready
+    // Wait for MongoDB to actually become ready and respond
     let ready = false;
     for (let i = 0; i < 40; i++) {
       await new Promise((r) => setTimeout(r, 250));
-      if (await isPortReady(mongoPort)) {
+      if (await isMongoAlive(mongoPort, 600)) {
         ready = true;
         break;
       }
     }
     if (!ready) {
-      console.warn(`Native mongod on port ${mongoPort} didn't start. Falling back to MongoMemoryServer...`);
+      console.warn(`Native mongod on port ${mongoPort} didn't respond. Falling back to MongoMemoryServer...`);
       const { MongoMemoryServer } = await import('mongodb-memory-server');
       const memMongo = await MongoMemoryServer.create({ instance: { port: mongoPort } });
       activeMongoUri = memMongo.getUri('shiftline');
@@ -137,19 +167,34 @@ const child = spawn(tsxBin, ['src/index.ts'], {
   },
 });
 
-const cleanup = () => {
+let cleaningUp = false;
+const cleanup = async () => {
+  if (cleaningUp) return;
+  cleaningUp = true;
   try { child.kill('SIGTERM'); } catch {}
-  if (mongodProc) {
-    try { mongodProc.kill('SIGTERM'); } catch {}
+  if (mongodProc && !mongodProc.killed) {
+    try {
+      mongodProc.kill('SIGTERM');
+      await Promise.race([
+        new Promise((resolve) => mongodProc?.on('exit', resolve)),
+        new Promise((resolve) => setTimeout(resolve, 2000)),
+      ]);
+    } catch {}
   }
   process.exit(0);
 };
 
 process.on('SIGINT', cleanup);
 process.on('SIGTERM', cleanup);
-child.on('exit', (code) => {
-  if (mongodProc) {
-    try { mongodProc.kill('SIGTERM'); } catch {}
+child.on('exit', async (code) => {
+  if (mongodProc && !mongodProc.killed) {
+    try {
+      mongodProc.kill('SIGTERM');
+      await Promise.race([
+        new Promise((resolve) => mongodProc?.on('exit', resolve)),
+        new Promise((resolve) => setTimeout(resolve, 2000)),
+      ]);
+    } catch {}
   }
   process.exit(code ?? 0);
 });

@@ -1,7 +1,8 @@
 import XLSX from 'xlsx-js-style';
 
 import { exportColors } from '@/app/tones';
-import { MONTH_ABBR, buildColumns, daysInMonth } from '@/domain/calendar';
+import { MONTH_ABBR, MONTH_NAMES, buildColumns, daysInMonth } from '@/domain/calendar';
+import { generateMonth } from '@/domain/generator';
 import { DEFAULT_STANDARD_HOURS, employeeHours } from '@/domain/hours';
 import { isLeaderEmployee } from '@/domain/rotation';
 import { OFF, type Employee, type Line, type RosterMonth, type SheetLayout, type ShiftCode } from '@/domain/types';
@@ -551,7 +552,7 @@ export interface BackupData {
   codes: ShiftCode[];
   leave?: import('@/domain/types').LeaveBlock[];
   rosters?: RosterMonth[];
-  settings?: unknown;
+  settings?: Record<string, any>;
 }
 
 /**
@@ -564,23 +565,105 @@ const BACKUP_MARK = 'ShiftLine backup v1 — do not edit';
 /** Excel caps a cell at 32,767 characters. */
 const CHUNK = 30000;
 
+function resolveEffectiveActive(data: BackupData, active?: ActiveRosterHint): ActiveRosterHint | undefined {
+  if (active) return active;
+
+  const rawSettings = (data.settings && typeof data.settings === 'object' ? data.settings : {}) as Record<string, any>;
+  const activeLineId = String(rawSettings.activeLineId || data.lines[0]?.id || 'line6');
+
+  // 1. Check remembered lineMonths for this line
+  const remembered = rawSettings.lineMonths?.[activeLineId];
+  if (remembered?.year && remembered?.month) {
+    return {
+      activeLineId,
+      activeYear: Number(remembered.year),
+      activeMonth: Number(remembered.month),
+    };
+  }
+
+  // 2. Find the roster on this line that actually has the most filled shifts / edits
+  const lineRosters = (data.rosters ?? []).filter((r) => r.lineId === activeLineId);
+  if (lineRosters.length > 0) {
+    const bestRoster = [...lineRosters].sort((a, b) => {
+      const aOverrides = Object.keys(a.overrides ?? {}).length;
+      const bOverrides = Object.keys(b.overrides ?? {}).length;
+      if (aOverrides !== bOverrides) return bOverrides - aOverrides;
+      const aCells = Object.values(a.cells ?? {}).reduce(
+        (sum, list) => sum + (Array.isArray(list) ? list.filter((c) => c.code && c.code !== '-').length : 0),
+        0,
+      );
+      const bCells = Object.values(b.cells ?? {}).reduce(
+        (sum, list) => sum + (Array.isArray(list) ? list.filter((c) => c.code && c.code !== '-').length : 0),
+        0,
+      );
+      return bCells - aCells;
+    })[0];
+
+    if (bestRoster) {
+      return {
+        activeLineId,
+        activeYear: bestRoster.year,
+        activeMonth: bestRoster.month,
+      };
+    }
+  }
+
+  // 3. Fall back to settings.activeYear / activeMonth
+  if (rawSettings.activeYear && rawSettings.activeMonth) {
+    return {
+      activeLineId,
+      activeYear: Number(rawSettings.activeYear),
+      activeMonth: Number(rawSettings.activeMonth),
+    };
+  }
+
+  return undefined;
+}
+
 export function buildBackupWorkbook(data: BackupData, active?: ActiveRosterHint): XLSX.WorkBook {
   const wb = XLSX.utils.book_new();
 
+  const rawSettings = (data.settings && typeof data.settings === 'object' ? data.settings : {}) as Record<string, any>;
+  const effectiveActive = resolveEffectiveActive(data, active);
+
   // 1. If rosters exist, append formatted roster sheets
   if (data.rosters && data.rosters.length > 0 && data.lines.length > 0) {
+    // Ensure active month roster is present
+    if (effectiveActive) {
+      const activeExists = data.rosters.some(
+        (r) =>
+          r.lineId === effectiveActive.activeLineId &&
+          r.year === effectiveActive.activeYear &&
+          r.month === effectiveActive.activeMonth,
+      );
+      if (!activeExists) {
+        const emps = data.employees.filter((e) => e.lineId === effectiveActive.activeLineId);
+        if (emps.length > 0) {
+          data.rosters.push({
+            id: `${effectiveActive.activeLineId}:${effectiveActive.activeYear}-${effectiveActive.activeMonth}`,
+            lineId: effectiveActive.activeLineId,
+            year: effectiveActive.activeYear,
+            month: effectiveActive.activeMonth,
+            cells: {},
+            overrides: {},
+            updatedAt: Date.now(),
+          });
+        }
+      }
+    }
+
     // Sort: active line+month first, then newest year/month, skip empty lines
     const sortedRosters = [...data.rosters].sort((a, b) => {
       const aIsActive =
-        active &&
-        a.lineId === active.activeLineId &&
-        a.year === active.activeYear &&
-        a.month === active.activeMonth;
+        effectiveActive &&
+        a.lineId === effectiveActive.activeLineId &&
+        a.year === effectiveActive.activeYear &&
+        a.month === effectiveActive.activeMonth;
       const bIsActive =
-        active &&
-        b.lineId === active.activeLineId &&
-        b.year === active.activeYear &&
-        b.month === active.activeMonth;
+        effectiveActive &&
+        b.lineId === effectiveActive.activeLineId &&
+        b.year === effectiveActive.activeYear &&
+        b.month === effectiveActive.activeMonth;
       if (aIsActive && !bIsActive) return -1;
       if (!aIsActive && bIsActive) return 1;
       // Otherwise: same line together, then newest first
@@ -589,9 +672,9 @@ export function buildBackupWorkbook(data: BackupData, active?: ActiveRosterHint)
         return b.month - a.month;
       }
       // Active line's other months before other lines
-      if (active) {
-        if (a.lineId === active.activeLineId) return -1;
-        if (b.lineId === active.activeLineId) return 1;
+      if (effectiveActive) {
+        if (a.lineId === effectiveActive.activeLineId) return -1;
+        if (b.lineId === effectiveActive.activeLineId) return 1;
       }
       return a.lineId.localeCompare(b.lineId);
     });
@@ -601,15 +684,39 @@ export function buildBackupWorkbook(data: BackupData, active?: ActiveRosterHint)
       const emps = data.employees.filter((e) => e.lineId === r.lineId);
       // Skip rosters where no real employees exist for this line
       if (emps.length === 0) continue;
+
+      // Ensure roster has cells populated for current employees
+      let resolvedRoster = r;
+      const hasCellsForEmps = emps.some((e) => Array.isArray(r.cells?.[e.id]) && r.cells[e.id].length > 0);
+      if (!hasCellsForEmps) {
+        resolvedRoster = generateMonth({
+          year: r.year,
+          month: r.month,
+          lineId: r.lineId,
+          employees: emps,
+          leaveBlocks: (data.leave ?? []).filter((l) => l.employeeId && emps.some((e) => e.id === l.employeeId)),
+          overrides: r.overrides ?? {},
+          extraHours: r.extraHours ?? {},
+        });
+      }
+
       // Each line's own codes: an unscoped template code may share a token with it.
       const lineCodes = data.codes.filter((c) => c.scope === r.lineId);
       const rosterWb = buildWorkbook({
-        roster: r, employees: emps, codes: lineCodes.length ? lineCodes : data.codes, line,
+        roster: resolvedRoster,
+        employees: emps,
+        codes: lineCodes.length ? lineCodes : data.codes,
+        line,
         standardHours: (data.settings as { standardHours?: number } | undefined)?.standardHours,
       });
       const firstSheetName = rosterWb.SheetNames[0];
       if (firstSheetName && rosterWb.Sheets[firstSheetName]) {
-        XLSX.utils.book_append_sheet(wb, rosterWb.Sheets[firstSheetName], firstSheetName);
+        let sheetName = firstSheetName;
+        let c = 1;
+        while (wb.SheetNames.includes(sheetName)) {
+          sheetName = `${firstSheetName.slice(0, 28)}_${c++}`;
+        }
+        XLSX.utils.book_append_sheet(wb, rosterWb.Sheets[firstSheetName], sheetName);
       }
     }
   }
@@ -672,7 +779,17 @@ export function buildBackupWorkbook(data: BackupData, active?: ActiveRosterHint)
   }
 
   // 6. Exact copy of everything, hidden, for restore
-  const json = JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), ...data });
+  const json = JSON.stringify({
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    ...data,
+    settings: {
+      ...rawSettings,
+      activeLineId: effectiveActive?.activeLineId ?? rawSettings.activeLineId,
+      activeYear: effectiveActive?.activeYear ?? rawSettings.activeYear,
+      activeMonth: effectiveActive?.activeMonth ?? rawSettings.activeMonth,
+    },
+  });
   const chunks: string[][] = [[BACKUP_MARK]];
   for (let i = 0; i < json.length; i += CHUNK) chunks.push([json.slice(i, i + CHUNK)]);
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(chunks), BACKUP_SHEET);
@@ -690,8 +807,22 @@ export interface ActiveRosterHint {
 }
 
 export function downloadBackupXlsx(data: BackupData, active?: ActiveRosterHint): string {
-  const wb = buildBackupWorkbook(data, active);
-  const filename = `ShiftLine_Backup_${new Date().toISOString().slice(0, 10)}.xlsx`;
+  const effectiveActive = resolveEffectiveActive(data, active);
+  const wb = buildBackupWorkbook(data, effectiveActive);
+
+  const rawSettings = (data.settings && typeof data.settings === 'object' ? data.settings : {}) as Record<string, any>;
+  const year = effectiveActive?.activeYear ?? (Number(rawSettings.activeYear) || new Date().getFullYear());
+  const month = effectiveActive?.activeMonth ?? (Number(rawSettings.activeMonth) || (new Date().getMonth() + 1));
+  const monthName = MONTH_NAMES[month - 1] ?? `Month_${month}`;
+  const line = effectiveActive?.activeLineId
+    ? data.lines.find((l) => l.id === effectiveActive.activeLineId)
+    : rawSettings.activeLineId
+      ? data.lines.find((l) => l.id === rawSettings.activeLineId)
+      : undefined;
+
+  const lineSlug = line ? `${line.name.replace(/\s+/g, '_')}_` : '';
+  const filename = `ShiftLine_Backup_${lineSlug}${monthName}_${year}.xlsx`;
+
   const bytes = XLSX.write(wb, { type: 'array', bookType: 'xlsx', cellStyles: true });
   const blob = new Blob([bytes], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
