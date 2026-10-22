@@ -82,7 +82,7 @@ export function NotificationBell() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.98 }}
             transition={{ duration: 0.16, ease: 'easeOut' }}
-            className="fixed inset-x-2 top-16 sm:absolute sm:inset-x-auto sm:right-0 sm:top-full mt-2 z-50 sm:w-96 max-h-[calc(100vh-5rem)] overflow-y-auto rounded-2xl border border-[var(--line-strong)] bg-[var(--surface)]/95 backdrop-blur-xl shadow-2xl p-4 space-y-3"
+            className="fixed inset-x-2 top-16 sm:absolute sm:inset-x-auto sm:right-0 sm:top-full mt-2 z-50 sm:w-96 max-h-[calc(100vh-5rem)] overflow-y-auto rounded-2xl border border-[var(--line-strong)] bg-[var(--surface)] shadow-pop p-4 space-y-3"
           >
             {/* Header */}
             <div className="flex items-center justify-between border-b border-[var(--line)] pb-3">
@@ -163,7 +163,7 @@ function NotificationItem({
     <div
       className={cx(
         'group relative py-2.5 px-2.5 rounded-xl transition-colors space-y-1 text-xs',
-        !item.read ? 'bg-[var(--accent)]/5' : 'hover:bg-[var(--surface-2)]/60',
+        !item.read ? 'bg-[color-mix(in_srgb,var(--accent)_8%,var(--surface))]' : 'hover:bg-[var(--surface-2)]',
       )}
     >
       <div className="flex items-start justify-between gap-2">

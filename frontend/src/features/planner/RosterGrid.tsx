@@ -43,7 +43,7 @@ interface Props {
 
 export function RosterGrid({ brush, revealKey, jumpTo, onOpenImport }: Props) {
   const {
-    roster, employees, codes, columns, days, issues, settings, hours, paintCell, paintRange,
+    roster, employees, codes, lineCodes, columns, days, issues, settings, hours, paintCell, paintRange,
     setExtraHours,
   } = useStore();
   const viewport = useViewport();
@@ -195,8 +195,8 @@ export function RosterGrid({ brush, revealKey, jumpTo, onOpenImport }: Props) {
 
       const typed = e.key.toUpperCase();
       const match =
-        codes.find((c) => c.id === typed) ??
-        codes.find((c) => c.id[0] === typed && !c.isStatus);
+        lineCodes.find((c) => c.id === typed) ??
+        lineCodes.find((c) => c.id[0] === typed && !c.isStatus);
       if (match) {
         e.preventDefault();
         paintCell(focus.employeeId, focus.dayIndex, match.id);
@@ -205,7 +205,7 @@ export function RosterGrid({ brush, revealKey, jumpTo, onOpenImport }: Props) {
 
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [focus, roster, lineEmployees, columns.length, codes, paintCell]);
+  }, [focus, roster, lineEmployees, columns.length, lineCodes, paintCell]);
 
   if (!roster || roster.lineId !== settings.activeLineId) {
     return (
@@ -426,7 +426,11 @@ export function RosterGrid({ brush, revealKey, jumpTo, onOpenImport }: Props) {
                           : null,
                       ].filter(Boolean).join(' · ')}
                     >
-                      {isOff ? <span className="opacity-45">·</span> : code}
+                      {isOff ? (
+                        <span className="opacity-45">·</span>
+                      ) : (
+                        <CodeLabel code={code} cellWidth={CELL_W} fontPx={Math.max(9, Math.round(11.5 * zoom))} />
+                      )}
 
                       {/* extra hours entered on top of the shift */}
                       {extra > 0 && (
@@ -546,6 +550,32 @@ export function RosterGrid({ brush, revealKey, jumpTo, onOpenImport }: Props) {
 }
 
 /** Header for a month-total column pinned to the grid's right edge. */
+/**
+ * A shift code written into a cell. Short codes (M, GS, ML) print as-is; longer
+ * ones such as "M(S/L)" would spill out of the narrow day column, so a
+ * bracketed code is stacked on two lines and anything else is shrunk to fit.
+ */
+function CodeLabel({ code, cellWidth, fontPx }: { code: string; cellWidth: number; fontPx: number }) {
+  if (code.length <= 3) return <>{code}</>;
+  const fit = (chars: number) => Math.max(6, Math.min(fontPx, Math.floor((cellWidth - 4) / (chars * 0.62))));
+  const open = code.indexOf('(');
+  if (open > 0) {
+    const head = code.slice(0, open);
+    const tail = code.slice(open);
+    return (
+      <span className="flex flex-col items-center leading-[1.05] whitespace-nowrap">
+        <span>{head}</span>
+        <span style={{ fontSize: fit(tail.length) }}>{tail}</span>
+      </span>
+    );
+  }
+  return (
+    <span className="whitespace-nowrap" style={{ fontSize: fit(code.length) }}>
+      {code}
+    </span>
+  );
+}
+
 function TotalHeader({ label, right, width, title }: { label: string; right: number; width: number; title: string }) {
   return (
     <div

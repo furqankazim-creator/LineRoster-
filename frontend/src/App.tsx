@@ -250,8 +250,8 @@ function Shell({ onHome }: { onHome: () => void }) {
 
 const NAV_ITEMS = [
   ['dashboard', 'Dashboard', <HomeIcon key="i" />, 'Board'],
-  ['planner', 'Planner', <GridIcon key="i" />, 'Planner'],
-  ['workorders', 'Work Orders', <ClipboardIcon key="i" />, 'Orders'],
+  ['planner', 'Duty Roster', <GridIcon key="i" />, 'Roster'],
+  ['workorders', 'Maintenance Workorders', <ClipboardIcon key="i" />, 'Orders'],
   ['people', 'People', <PeopleIcon key="i" />, 'People'],
   ['setup', 'Setup', <GearIcon key="i" />, 'Setup'],
 ] as const;

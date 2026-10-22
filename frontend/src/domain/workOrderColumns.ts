@@ -48,7 +48,7 @@ export const WORK_ORDER_COLUMNS: WorkOrderColumn[] = [
   { excelHeader: 'Target Start', appField: 'targetStart', required: true, type: 'date',
     usedFor: 'Planned target start — reference only (target vs. scheduled).' },
   { excelHeader: 'Scheduled Start', appField: 'scheduledStart', required: true, type: 'date',
-    usedFor: 'The day the activity is placed on the Planner and counted in shift demand.' },
+    usedFor: 'The day the activity is placed on the Duty Roster and counted in shift demand.' },
   { excelHeader: 'Finish No Later Than', aliases: ['Finish No Later', 'Finish Note Later Date'], appField: 'finishNoLater', required: true, type: 'date',
     usedFor: 'End of the allowed window — drives "past Finish No Later Than" and "outside window".' },
   { excelHeader: 'Div / Depart', aliases: ['Div/Dept', 'Division', 'Department', 'Div Depart'], appField: 'department', required: true, type: 'text',

@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 
 import { switchTheme } from '@/app/themeTransition';
 import { AlstomLogo } from '@/components/AlstomLogo';
-import { Button, Input, cx } from '@/components/ui';
+import { Button, Input, Segmented } from '@/components/ui';
 import { THEME_STORAGE_KEY, getStoredTheme, patchSettings, saveStoredTheme } from '@/data/db';
 
 import { useAuth } from './authStore';
@@ -125,28 +125,32 @@ export function LoginGate({ onBackToHome }: Props) {
   }, []);
 
 
+  const switchMode = (next: 'passcode' | 'admin') => {
+    setMode(next);
+    setError(null);
+  };
+
   return (
-    <div className="relative min-h-screen flex items-center justify-center p-4 bg-[var(--canvas)] overflow-hidden select-none font-sans">
-      {/* Background ambient aurora and geometric patterns */}
-      <div className="absolute inset-0 bg-[radial-gradient(#334155_1px,transparent_1px)] [background-size:24px_24px] opacity-15 pointer-events-none" />
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[650px] h-[380px] bg-indigo-500/12 blur-[140px] rounded-full pointer-events-none" />
-      <div className="absolute bottom-10 right-10 w-[420px] h-[320px] bg-blue-500/10 blur-[130px] rounded-full pointer-events-none" />
-      <div className="absolute top-10 left-10 w-[380px] h-[280px] bg-emerald-500/8 blur-[120px] rounded-full pointer-events-none" />
+    // No font-family here on purpose: the page inherits the app font (and the
+    // font chosen in Display settings) so login matches every other screen.
+    <div className="relative min-h-screen flex items-center justify-center p-4 bg-[var(--canvas)] overflow-hidden select-none">
+      {/* soft accent glow */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[720px] h-[360px] rounded-full blur-[140px] opacity-25 pointer-events-none bg-[var(--accent)]" />
 
       <motion.div
-        initial={{ opacity: 0, y: 16, scale: 0.98 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: 0.35, ease: 'easeOut' }}
-        className="relative w-full max-w-[440px] rounded-3xl border border-[var(--line-strong)] bg-[var(--surface)]/90 backdrop-blur-2xl p-6 sm:p-8 shadow-2xl space-y-6"
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, ease: 'easeOut' }}
+        className="relative w-full max-w-[420px] rounded-2xl border border-[var(--line-strong)] bg-[var(--surface)] p-6 sm:p-8 shadow-pop"
       >
         {/* Theme switcher */}
-        <div className="absolute top-4 right-4 sm:top-5 sm:right-5">
+        <div className="absolute top-4 right-4">
           <button
             type="button"
             onClick={(e) => handleToggleTheme(e)}
             title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
             aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
-            className="grid h-8 w-8 place-items-center overflow-hidden rounded-xl border border-[var(--line-strong)] bg-[var(--surface-2)] text-ink-2 hover:text-ink hover:bg-[var(--surface-3)] transition-all shadow-xs active:scale-95"
+            className="grid h-8 w-8 place-items-center overflow-hidden rounded-lg border border-[var(--line)] bg-[var(--surface-2)] text-ink-2 hover:text-ink hover:bg-[var(--surface-3)] transition-colors"
           >
             <AnimatePresence mode="wait" initial={false}>
               <motion.span
@@ -154,106 +158,61 @@ export function LoginGate({ onBackToHome }: Props) {
                 initial={{ rotate: -90, scale: 0.4, opacity: 0 }}
                 animate={{ rotate: 0, scale: 1, opacity: 1 }}
                 exit={{ rotate: 90, scale: 0.4, opacity: 0 }}
-                transition={{ duration: 0.22, ease: 'easeOut' }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
                 className="grid place-items-center"
               >
                 {theme === 'dark' ? (
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                    <circle cx="12" cy="12" r="4" />
-                    <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
-                  </svg>
+                  <Icon><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></Icon>
                 ) : (
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z" />
-                  </svg>
+                  <Icon><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z" /></Icon>
                 )}
               </motion.span>
             </AnimatePresence>
           </button>
         </div>
 
-        {/* Brand & Security Header */}
-        <div className="text-center space-y-2.5">
-          <div className="flex justify-center pt-1 pb-1.5">
+        {/* Brand */}
+        <div className="text-center">
+          <div className="flex justify-center mb-4">
             <AlstomLogo height={28} />
           </div>
-
-          <div>
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[var(--surface-3)] border border-[var(--line)] text-[11px] font-semibold text-ink-2 mb-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span>ShiftLine Protected Roster</span>
-            </div>
-            <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-ink">
-              Protected Workspace
-            </h1>
-          </div>
-
-          <p className="text-xs text-ink-3 max-w-xs mx-auto leading-relaxed">
-            Access to this scheduling link requires verification. Sign in as a team member or supervisor to unlock.
+          <h1 className="text-[22px] font-semibold tracking-tight text-ink">Sign in to ShiftLine</h1>
+          <p className="mt-1.5 text-[13px] text-ink-2 leading-relaxed">
+            This Duty Roster link is protected. Sign in as a team member or supervisor to open it.
           </p>
         </div>
 
-        {/* Tab switcher: Team Member vs Supervisor Login */}
-        <div className="grid grid-cols-2 p-1 rounded-2xl bg-[var(--surface-2)] border border-[var(--line)] text-xs font-semibold">
-          <button
-            type="button"
-            onClick={() => {
-              setMode('passcode');
-              setError(null);
-            }}
-            className={cx(
-              'py-2 px-3 rounded-xl transition-all flex flex-col items-center justify-center gap-0.5',
-              mode === 'passcode'
-                ? 'bg-[var(--surface)] text-ink shadow-sm font-bold border border-[var(--line)]'
-                : 'text-ink-3 hover:text-ink',
-            )}
-          >
-            <span className="flex items-center gap-1.5 text-xs">
-              <span>👥</span> Team Member
-            </span>
-            <span className="text-[10px] font-normal text-ink-3">Collaborator / Staff</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setMode('admin');
-              setError(null);
-            }}
-            className={cx(
-              'py-2 px-3 rounded-xl transition-all flex flex-col items-center justify-center gap-0.5',
-              mode === 'admin'
-                ? 'bg-[var(--surface)] text-ink shadow-sm font-bold border border-[var(--line)]'
-                : 'text-ink-3 hover:text-ink',
-            )}
-          >
-            <span className="flex items-center gap-1.5 text-xs">
-              <span>🛡️</span> Supervisor
-            </span>
-            <span className="text-[10px] font-normal text-ink-3">Admin &amp; Sharing</span>
-          </button>
+        {/* Team member / Supervisor */}
+        <div className="mt-6 flex justify-center">
+          <Segmented
+            value={mode}
+            onChange={switchMode}
+            options={[
+              { value: 'passcode', label: 'Team member' },
+              { value: 'admin', label: 'Supervisor' },
+            ]}
+          />
         </div>
 
-        {/* Error message banner */}
         {error && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
-            className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-300 text-xs flex items-center gap-2.5"
+            role="alert"
+            className="mt-5 px-3 py-2.5 rounded-lg border border-[color-mix(in_srgb,var(--danger)_35%,transparent)] bg-[color-mix(in_srgb,var(--danger)_12%,transparent)] text-[var(--danger)] text-[13px] font-medium"
           >
-            <span className="text-sm">⚠️</span>
-            <span className="font-semibold">{error}</span>
+            {error}
           </motion.div>
         )}
 
-        {/* Mode: Assigned Passcode Access */}
         {mode === 'passcode' ? (
-          <form onSubmit={handlePasscodeSubmit} className="space-y-4">
+          <form onSubmit={handlePasscodeSubmit} className="mt-5 space-y-4">
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-ink-2 flex items-center justify-between">
-                <span>Your Full Name / Call-Sign</span>
-                <span className="text-[10.5px] text-rose-400 font-normal">Required</span>
+              <label className="text-[12px] font-medium text-ink-2 flex items-center justify-between">
+                <span>Your name</span>
+                {securitySettings.requireName && <span className="text-[11px] text-ink-3">Required</span>}
               </label>
-              <div className="relative">
+              <FieldIcon icon={<Icon><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></Icon>}>
                 <Input
                   type="text"
                   value={name}
@@ -261,75 +220,43 @@ export function LoginGate({ onBackToHome }: Props) {
                   placeholder="e.g. Arif"
                   required={securitySettings.requireName}
                   autoFocus
-                  className="bg-[var(--surface-2)] text-xs h-10 px-3 pl-8 rounded-xl font-medium"
+                  className="h-10 pl-9 text-[13px]"
                 />
-                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs opacity-50">👤</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-[10.5px] text-ink-3 pt-0.5">
-                <span className="text-emerald-600 dark:text-emerald-400">🔔</span>
-                <span>The supervisor receives an instant alert: &ldquo;{name.trim() || 'Team Member'} logged in&rdquo;.</span>
-              </div>
+              </FieldIcon>
+              <p className="text-[11.5px] text-ink-3">
+                The supervisor is alerted: &ldquo;{name.trim() || 'Team member'} logged in&rdquo;.
+              </p>
             </div>
 
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <label className="text-xs font-semibold text-ink-2">
-                    Roster Passcode
-                  </label>
-                  {passcode && (
-                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold px-1 rounded bg-emerald-500/10">
-                      ✓ Ready
-                    </span>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="text-[11px] text-[var(--accent)] hover:underline font-medium"
-                >
-                  {showPassword ? 'Hide' : 'Show'}
-                </button>
+                <label className="text-[12px] font-medium text-ink-2">Roster passcode</label>
+                <ShowToggle shown={showPassword} onClick={() => setShowPassword(!showPassword)} />
               </div>
-              <div className="relative">
+              <FieldIcon icon={<Icon><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></Icon>}>
                 <Input
                   type={showPassword ? 'text' : 'password'}
                   value={passcode}
                   onChange={(e) => setPasscode(e.target.value)}
-                  placeholder="Enter your assigned passcode"
+                  placeholder="Enter your passcode"
                   required
-                  className="bg-[var(--surface-2)] text-xs h-10 px-3 pl-8 rounded-xl font-mono tracking-wide"
+                  className="h-10 pl-9 text-[13px]"
                 />
-                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs opacity-50">🔒</span>
-              </div>
+              </FieldIcon>
             </div>
 
-            <Button
-              type="submit"
-              variant="primary"
-              disabled={isSubmitting}
-              className="w-full py-2.5 h-11 text-xs font-bold rounded-xl mt-3 shadow-lg shadow-indigo-500/20"
-            >
-              {isSubmitting ? 'Verifying Credentials…' : 'Unlock & Open Roster →'}
+            <Button type="submit" variant="primary" disabled={isSubmitting} className="w-full h-10 text-[13px] font-semibold mt-1">
+              {isSubmitting ? 'Verifying…' : 'Open Duty Roster'}
             </Button>
           </form>
         ) : (
-          /* Mode: Supervisor Sign In */
-          <form onSubmit={handleAdminSubmit} className="space-y-4">
+          <form onSubmit={handleAdminSubmit} className="mt-5 space-y-4">
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-semibold text-ink-2">
-                  Supervisor Master Password
-                </label>
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="text-[11px] text-[var(--accent)] hover:underline font-medium"
-                >
-                  {showPassword ? 'Hide' : 'Show'}
-                </button>
+                <label className="text-[12px] font-medium text-ink-2">Supervisor password</label>
+                <ShowToggle shown={showPassword} onClick={() => setShowPassword(!showPassword)} />
               </div>
-              <div className="relative">
+              <FieldIcon icon={<Icon><circle cx="8" cy="15" r="4" /><path d="m11 12 9-9M16 7l3 3" /></Icon>}>
                 <Input
                   type={showPassword ? 'text' : 'password'}
                   value={adminPassword}
@@ -337,41 +264,27 @@ export function LoginGate({ onBackToHome }: Props) {
                   placeholder="Enter supervisor password"
                   required
                   autoFocus
-                  className="bg-[var(--surface-2)] text-xs h-10 px-3 pl-8 rounded-xl font-mono tracking-wide"
+                  className="h-10 pl-9 text-[13px]"
                 />
-                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs opacity-50">🔑</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-[10.5px] text-ink-3 pt-0.5">
-                <span className="text-amber-600 dark:text-amber-400">🛡️</span>
-                <span>Unlocks Link Sharing, Login Alerts Drawer &amp; Active Member Monitor.</span>
-              </div>
+              </FieldIcon>
+              <p className="text-[11.5px] text-ink-3">Unlocks link sharing, login alerts and the active-member monitor.</p>
             </div>
 
-            <Button
-              type="submit"
-              variant="primary"
-              disabled={isSubmitting}
-              className="w-full py-2.5 h-11 text-xs font-bold rounded-xl mt-3 shadow-lg shadow-amber-500/15"
-            >
-              {isSubmitting ? 'Authenticating Supervisor…' : 'Sign In as Supervisor →'}
+            <Button type="submit" variant="primary" disabled={isSubmitting} className="w-full h-10 text-[13px] font-semibold mt-1">
+              {isSubmitting ? 'Authenticating…' : 'Sign in as supervisor'}
             </Button>
           </form>
         )}
 
-
-        {/* Footer info & Navigation */}
-        <div className="flex items-center justify-between text-[11px] text-ink-3 pt-1">
+        {/* Footer */}
+        <div className="mt-6 pt-4 border-t border-[var(--line)] flex items-center justify-between text-[12px] text-ink-3">
           <span className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400" />
-            <span>Multi-User Sync Active</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-[var(--ok)]" />
+            Multi-user sync active
           </span>
           {onBackToHome && (
-            <button
-              type="button"
-              onClick={onBackToHome}
-              className="text-ink-2 hover:text-ink hover:underline font-medium"
-            >
-              ← Back to Overview
+            <button type="button" onClick={onBackToHome} className="text-ink-2 hover:text-ink font-medium transition-colors">
+              ← Back to overview
             </button>
           )}
         </div>
@@ -380,3 +293,28 @@ export function LoginGate({ onBackToHome }: Props) {
   );
 }
 
+function Icon({ children }: { children: React.ReactNode }) {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      {children}
+    </svg>
+  );
+}
+
+/** An input with a leading icon. */
+function FieldIcon({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div className="relative">
+      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-3 pointer-events-none">{icon}</span>
+      {children}
+    </div>
+  );
+}
+
+function ShowToggle({ shown, onClick }: { shown: boolean; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} className="text-[12px] text-[var(--accent)] hover:underline font-medium">
+      {shown ? 'Hide' : 'Show'}
+    </button>
+  );
+}

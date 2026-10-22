@@ -24,18 +24,18 @@ export function Toolbar({
   brush, setBrush, onGenerate, onRotate, onImport, onExport, onReturnToImport, insightsOpen, toggleInsights,
 }: Props) {
   const {
-    settings, lines, codes, lineCodes, employees, enableCode, setLine, setMonth, stepMonth, issues, undo, redo,
+    settings, lines, lineCodes, employees, enableCode, setLine, setMonth, stepMonth, issues, undo, redo,
     canUndo, canRedo,
     updateSettings, saveStatus, saveRoster,
   } = useStore();
   const lineEmployees = employees.filter((e) => e.lineId === settings.activeLineId);
   const [addCodeOpen, setAddCodeOpen] = useState(false);
   const toast = useToast();
-  // Codes that exist but this month does not use yet — offered behind "＋".
-  const shown = new Set(codes.map((c) => c.id));
-  const availableToAdd = lineCodes
-    .filter((c) => !shown.has(c.id))
-    .sort((a, b) => a.order - b.order);
+  // The brush offers every code the line owns in Setup, so a code added or
+  // edited there shows up here straight away. (`codes` — only what the month
+  // uses — still drives the headcount legend and the validator.)
+  const brushCodes = lineCodes;
+  const availableToAdd: typeof lineCodes = [];
   const errors = issues.filter((i) => i.severity === 'error').length;
   const warnings = issues.length - errors;
   const viewport = useViewport();
@@ -433,7 +433,7 @@ export function Toolbar({
           hint="Click a cell to pick"
         />
 
-        {codes.map((code) => {
+        {brushCodes.map((code) => {
           const tone = codeVars(code);
           return (
             <BrushChip

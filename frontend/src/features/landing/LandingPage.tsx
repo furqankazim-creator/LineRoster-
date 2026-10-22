@@ -421,8 +421,8 @@ export function LandingPage({ onOpen }: { onOpen: () => void }) {
             <h4 className="text-[11px] font-bold uppercase tracking-widest text-[var(--text-primary)]">Workspaces</h4>
             <ul className="mt-4 space-y-2.5 text-[13px]">
               {[
-                ['Planner', 'Roster, rules & insights'],
-                ['Work Orders', 'Allocation & shift buffer'],
+                ['Duty Roster', 'Roster, rules & insights'],
+                ['Maintenance Workorders', 'Allocation & shift buffer'],
                 ['People', 'Shifts, rest days, rotation'],
                 ['Setup', 'Codes, lines & security'],
               ].map(([name, hint]) => (

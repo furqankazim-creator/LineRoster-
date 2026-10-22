@@ -91,7 +91,7 @@ export function LivePresence() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 6, scale: 0.98 }}
             transition={{ duration: 0.15, ease: 'easeOut' }}
-            className="absolute right-0 top-full mt-2 z-50 w-80 max-w-[calc(100vw-1.5rem)] rounded-2xl border border-[var(--line-strong)] bg-[var(--surface)]/95 backdrop-blur-xl shadow-2xl p-4 space-y-3"
+            className="absolute right-0 top-full mt-2 z-50 w-80 max-w-[calc(100vw-1.5rem)] rounded-2xl border border-[var(--line-strong)] bg-[var(--surface)] shadow-pop p-4 space-y-3"
           >
             <div className="flex items-center justify-between border-b border-[var(--line)] pb-2.5">
               <div className="flex items-center gap-2">

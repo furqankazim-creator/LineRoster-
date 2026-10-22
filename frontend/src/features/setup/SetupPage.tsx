@@ -137,7 +137,7 @@ export function SetupPage() {
         </Section>
 
         {/* ------------------------------------------------------- rules */}
-        <Section title="Planner rules & working hours" description="What the validator checks on every edit, and how hours and overtime are counted.">
+        <Section title="Duty Roster rules & working hours" description="What the validator checks on every edit, and how hours and overtime are counted.">
           <div className="bg-[var(--surface)] px-4 py-4 flex flex-col gap-4">
             <Field
               label="Warn after this many days worked in a row"
@@ -155,7 +155,7 @@ export function SetupPage() {
 
             <Field
               label="Standard working hours per day"
-              hint="Hours past this on a working day are overtime (OT). A shift worked on someone's rest day counts entirely as OT. Extra hours are entered by clicking a cell on the Planner."
+              hint="Hours past this on a working day are overtime (OT). A shift worked on someone's rest day counts entirely as OT. Extra hours are entered by clicking a cell on the Duty Roster."
             >
               <div className="flex items-center gap-2">
                 <Input
@@ -1467,7 +1467,7 @@ function ResourceRequirementsSection({
     };
     await onSave(updated);
     toast(
-      `${lineLabel} ${req.workType} ${req.shift === 'all' ? '' : req.shift + ' '}standard is now ${updated.defaultPeopleCount}. Work Orders and Planner issues updated.`,
+      `${lineLabel} ${req.workType} ${req.shift === 'all' ? '' : req.shift + ' '}standard is now ${updated.defaultPeopleCount}. Maintenance Workorders and Duty Roster issues updated.`,
       'ok',
     );
   };
@@ -1483,7 +1483,7 @@ function ResourceRequirementsSection({
   return (
     <Section
       title="Work Order Resource Standards"
-      description="Crew size per work order (PM / CM / ACS) for each line and shift. Used whenever the imported Excel row gives no crew size — change a number and Work Orders, buffers and Planner issues update immediately."
+      description="Crew size per work order (PM / CM / ACS) for each line and shift. Used whenever the imported Excel row gives no crew size — change a number and Maintenance Workorders, buffers and Duty Roster issues update immediately."
     >
       <div className="bg-[var(--surface)] p-5 flex flex-col gap-5">
         {/* Line Switcher */}
@@ -1677,7 +1677,7 @@ function ResourceRequirementsSection({
         <div className="text-[12px] text-ink-3 bg-[var(--surface-2)]/60 p-3 rounded-xl border border-[var(--line)]/60 flex items-center gap-2.5">
           <span className="text-base">💡</span>
           <span>
-            Each number is the crew <strong>one</strong> work order needs on {lineLabel}. It applies to rows whose Excel file gave no crew size (tagged &quot;Setup standard&quot; in Work Orders). Rows with a crew size in the file, or changed by hand with −/+, keep their own number — use &quot;↺ Use standard&quot; there to switch back.
+            Each number is the crew <strong>one</strong> work order needs on {lineLabel}. It applies to rows whose Excel file gave no crew size (tagged &quot;Setup standard&quot; in Maintenance Workorders). Rows with a crew size in the file, or changed by hand with −/+, keep their own number — use &quot;↺ Use standard&quot; there to switch back.
           </span>
         </div>
       </div>

@@ -1,981 +1,889 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import { useStore } from '@/app/store';
-import { AlstomLogo } from '@/components/AlstomLogo';
-import { cx } from '@/components/ui';
+import { Button, Segmented, Select, cx } from '@/components/ui';
+import { normalizeWorkType } from '@/domain/workload';
+import {
+  POOL_LINES,
+  SHIFT_FAMILIES,
+  SHIFT_LABEL,
+  poolOf,
+  poolOfLineId,
+  type ShiftFamily,
+  type StaffPool,
+} from '@/domain/workloadLive';
 
 interface Props {
   onOpenPlanner: () => void;
   onOpenWorkOrders: () => void;
 }
 
-type TimeHorizon = 'today' | '7days' | '30days';
-type ChartMode = 'system' | 'shift' | 'status';
+type PoolFilter = 'all' | 'L46' | 'L5';
+type Horizon = 'today' | '7days' | 'month';
+type ChartView = 'orders' | 'crew';
+type ChartMode = 'type' | 'shift' | 'status' | 'line';
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+const POOL_LEAD_LINE: Record<StaffPool, string> = { L4_L6: 'line4', L5: 'line5' };
+const POOL_TITLE: Record<StaffPool, string> = { L4_L6: 'Line 4 & 6 Combined Pool', L5: 'Line 5 Pool' };
+const SHIFT_TIMING: Record<ShiftFamily, string> = { M: '06:00–15:00', E: '14:00–23:00', N: '22:00–07:00' };
+const SHIFT_COLOR: Record<ShiftFamily, string> = { M: 'var(--sh-m)', E: 'var(--sh-e)', N: 'var(--sh-n)' };
+
+const DONE_STATUSES = new Set(['COMPLETED', 'CLOSE', 'CLOSED', 'DONE']);
+
+interface Cell {
+  onDuty: number;
+  demand: number;
+  pm: number;
+  cm: number;
+  acs: number;
+  orders: number;
+}
+const EMPTY_CELL: Cell = { onDuty: 0, demand: 0, pm: 0, cm: 0, acs: 0, orders: 0 };
 
 export function DashboardPage({ onOpenPlanner, onOpenWorkOrders }: Props) {
-  const {
-    workOrders,
-    allEmployees,
-    settings,
-    workload,
-    roster,
-  } = useStore();
+  const { workOrders, allEmployees, settings, workload, staffForShift, codesByLine } = useStore();
+  const { activeYear: year, activeMonth: month } = settings;
+  const nDays = new Date(year, month, 0).getDate();
+  const monthPrefix = `${year}-${String(month).padStart(2, '0')}-`;
+  const isoOf = (d: number) => `${monthPrefix}${String(d).padStart(2, '0')}`;
+
+  const [poolFilter, setPoolFilter] = useState<PoolFilter>('all');
+  const [horizon, setHorizon] = useState<Horizon>('7days');
+  const [chartView, setChartView] = useState<ChartView>('orders');
+  const [hoverDay, setHoverDay] = useState<number | null>(null);
+  const [chartMode, setChartMode] = useState<ChartMode>('type');
+  const [activeSlice, setActiveSlice] = useState<number | null>(null);
+
+  const pools = useMemo<StaffPool[]>(
+    () => (poolFilter === 'all' ? ['L4_L6', 'L5'] : poolFilter === 'L46' ? ['L4_L6'] : ['L5']),
+    [poolFilter],
+  );
+
+  const woMap = useMemo(() => new Map(workOrders.map((w) => [w.id, w])), [workOrders]);
+
+  // Work orders placed in the open month, for the chosen pools
+  const monthAllocs = useMemo(
+    () =>
+      Object.values(workload.byWo).filter(
+        (a) => a.status !== 'UNPLACED' && a.date.startsWith(monthPrefix) && pools.includes(poolOf(a.lineCode)),
+      ),
+    [workload.byWo, monthPrefix, pools],
+  );
+
+  const unplaced = useMemo(
+    () => Object.values(workload.byWo).filter((a) => a.status === 'UNPLACED').length,
+    [workload.byWo],
+  );
+
+  // Planning date: today when it falls in the open month, else the first day that has work
+  const [pickedDay, setPickedDay] = useState<number | null>(null);
+  const defaultDay = useMemo(() => {
+    const now = new Date();
+    if (now.getFullYear() === year && now.getMonth() + 1 === month) return now.getDate();
+    const first = Object.values(workload.byWo)
+      .filter((a) => a.status !== 'UNPLACED' && a.date.startsWith(monthPrefix))
+      .map((a) => a.day)
+      .sort((a, b) => a - b)[0];
+    return first ?? 1;
+  }, [year, month, monthPrefix, workload.byWo]);
+  const selectedDay = Math.min(nDays, Math.max(1, pickedDay ?? defaultDay));
+  const setSelectedDay = (d: number | ((p: number) => number)) =>
+    setPickedDay(typeof d === 'function' ? d(selectedDay) : d);
 
   // --------------------------------------------------------------------------
-  // LIVE CLOCK & RIYADH RAILWAY TELEMETRY
+  // Roster × work order grid: [day][pool][shift] → on duty, crew demand, orders
   // --------------------------------------------------------------------------
-  const [currentTime, setCurrentTime] = useState(() => new Date());
-  useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
+  const grid = useMemo(() => {
+    const balanceByKey = new Map(workload.balances.map((b) => [`${b.pool}|${b.date}|${b.shift}`, b]));
+    const days: Record<StaffPool, Record<ShiftFamily, Cell>>[] = [];
+    for (let d = 1; d <= nDays; d++) {
+      const iso = isoOf(d);
+      const day = {} as Record<StaffPool, Record<ShiftFamily, Cell>>;
+      for (const pool of ['L4_L6', 'L5'] as StaffPool[]) {
+        const row = {} as Record<ShiftFamily, Cell>;
+        for (const shift of SHIFT_FAMILIES) {
+          const onDuty = staffForShift(POOL_LEAD_LINE[pool], iso, shift).length;
+          const b = balanceByKey.get(`${pool}|${iso}|${shift}`);
+          row[shift] = b
+            ? { onDuty, demand: b.demand, pm: b.pm, cm: b.cm, acs: b.acs, orders: b.orders }
+            : { ...EMPTY_CELL, onDuty };
+        }
+        day[pool] = row;
+      }
+      days.push(day);
+    }
+    return days;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workload.balances, staffForShift, nDays, monthPrefix]);
 
-  const timeFormatted = useMemo(() => {
-    const pad = (n: number) => String(n).padStart(2, '0');
-    const h = pad(currentTime.getHours());
-    const m = pad(currentTime.getMinutes());
-    const s = pad(currentTime.getSeconds());
-    const daysArr = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const monthsArr = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const dayName = daysArr[currentTime.getDay()];
-    const monthName = monthsArr[currentTime.getMonth()];
-    const d = currentTime.getDate();
-    const y = currentTime.getFullYear();
-    return {
-      time: `${h}:${m}:${s}`,
-      dateStr: `${dayName}, ${d} ${monthName} ${y}`,
-      tz: 'AST (UTC+3) · Riyadh Central Control',
-    };
-  }, [currentTime]);
+  const dayStats = useMemo(
+    () =>
+      grid.map((day, i) => {
+        let demand = 0;
+        let capacity = 0;
+        let orders = 0;
+        let shortBy = 0;
+        for (const pool of pools) {
+          for (const shift of SHIFT_FAMILIES) {
+            const c = day[pool][shift];
+            demand += c.demand;
+            capacity += c.onDuty;
+            orders += c.orders;
+            shortBy += Math.max(0, c.demand - c.onDuty);
+          }
+        }
+        return { day: i + 1, demand, capacity, orders, shortBy };
+      }),
+    [grid, pools],
+  );
 
-  // Operational planning date (defaults to 20 or current day)
-  const [selectedDay, setSelectedDay] = useState<number>(20);
-  const [timeHorizon, setTimeHorizon] = useState<TimeHorizon>('7days');
-  const [activePoolFilter, setActivePoolFilter] = useState<'all' | 'L46' | 'L5'>('all');
-  const [chartMode, setChartMode] = useState<ChartMode>('system');
-  const [activeSliceIndex, setActiveSliceIndex] = useState<number | null>(null);
+  const today = dayStats[selectedDay - 1];
 
-  // Active ISO date
-  const activeIsoDate = useMemo(() => {
-    const y = settings.activeYear;
-    const m = String(settings.activeMonth).padStart(2, '0');
-    const d = String(selectedDay).padStart(2, '0');
-    return `${y}-${m}-${d}`;
-  }, [settings.activeYear, settings.activeMonth, selectedDay]);
+  const dayAllocs = useMemo(() => monthAllocs.filter((a) => a.day === selectedDay), [monthAllocs, selectedDay]);
+  const dayDone = dayAllocs.filter((a) => DONE_STATUSES.has((woMap.get(a.woId)?.status || '').toUpperCase())).length;
+  const dayStaffed = dayAllocs.filter((a) => a.status === 'OK').length;
 
-  // --------------------------------------------------------------------------
-  // DAILY OPERATIONAL WORK ORDERS & CAPACITY
-  // --------------------------------------------------------------------------
-  const dailyWorkOrders = useMemo(() => {
-    const ordersOnDate = Object.values(workload.byWo).filter((alloc) => {
-      if (alloc.date !== activeIsoDate) return false;
-      if (activePoolFilter === 'L5') return alloc.lineCode === 'L5';
-      if (activePoolFilter === 'L46') return alloc.lineCode === 'L4' || alloc.lineCode === 'L6';
-      return true;
+  const monthShortDays = dayStats.filter((d) => d.shortBy > 0).length;
+  const monthShortBy = dayStats.reduce((s, d) => s + d.shortBy, 0);
+  const typeCounts = useMemo(() => {
+    const t = { PM: 0, CM: 0, ACS: 0 };
+    for (const a of monthAllocs) t[normalizeWorkType(woMap.get(a.woId)?.workType)]++;
+    return t;
+  }, [monthAllocs, woMap]);
+
+  const peopleByPool = useMemo(() => {
+    const out: Record<StaffPool, number> = { L4_L6: 0, L5: 0 };
+    for (const e of allEmployees) if (e.active !== false) out[poolOfLineId(e.lineId)]++;
+    return out;
+  }, [allEmployees]);
+
+  const dutyToday = pools.reduce(
+    (s, p) => s + SHIFT_FAMILIES.reduce((n, sh) => n + grid[selectedDay - 1][p][sh].onDuty, 0),
+    0,
+  );
+  const rosterPeople = pools.reduce((s, p) => s + peopleByPool[p], 0);
+
+  // Shift-level shortfalls across the month, worst first by date
+  const shortfalls = useMemo(() => {
+    const out: { day: number; pool: StaffPool; shift: ShiftFamily; need: number; have: number }[] = [];
+    grid.forEach((day, i) => {
+      for (const pool of pools) {
+        for (const shift of SHIFT_FAMILIES) {
+          const c = day[pool][shift];
+          if (c.demand > c.onDuty) out.push({ day: i + 1, pool, shift, need: c.demand, have: c.onDuty });
+        }
+      }
     });
-
-    const woMap = new Map(workOrders.map((w) => [w.id, w]));
-    const isCompleted = (woId: string) => {
-      const st = (woMap.get(woId)?.status || '').toUpperCase();
-      return st === 'COMPLETED' || st === 'CLOSE' || st === 'CLOSED' || st === 'DONE';
-    };
-
-    const scheduled = ordersOnDate.length || (selectedDay === 20 ? 8 : (selectedDay % 2 === 0 ? 6 : 4));
-    const completed = ordersOnDate.filter((o) => isCompleted(o.woId)).length;
-    const remaining = Math.max(0, scheduled - completed);
-
-    const l46Orders = ordersOnDate.filter((o) => o.lineCode === 'L4' || o.lineCode === 'L6');
-    const l5Orders = ordersOnDate.filter((o) => o.lineCode === 'L5');
-
-    return {
-      scheduled,
-      completed,
-      remaining,
-      l46Scheduled: l46Orders.length || (selectedDay === 20 ? 8 : 4),
-      l46Closed: l46Orders.filter((o) => isCompleted(o.woId)).length,
-      l5Scheduled: l5Orders.length || (selectedDay === 20 ? 0 : 2),
-      l5Closed: l5Orders.filter((o) => isCompleted(o.woId)).length,
-    };
-  }, [workload.byWo, activeIsoDate, workOrders, activePoolFilter, selectedDay]);
+    return out;
+  }, [grid, pools]);
 
   // --------------------------------------------------------------------------
-  // SHIFT GANG DEPLOYMENT (LINE 4/6 & LINE 5)
+  // Demand vs capacity chart
   // --------------------------------------------------------------------------
-  const shiftDeployment = useMemo(() => {
-    const dayIdx = selectedDay - 1;
-    let l46M = 0, l46E = 0, l46N = 0, l46GS = 0;
-    let l5M = 0, l5E = 0, l5N = 0, l5GS = 0;
+  const chartPoints = useMemo(() => {
+    const from = horizon === 'month' ? 1 : selectedDay;
+    const to = horizon === 'month' ? nDays : horizon === 'today' ? selectedDay : Math.min(nDays, selectedDay + 6);
+    return dayStats.slice(from - 1, to).map((s) => {
+      const dow = WEEKDAYS[new Date(year, month - 1, s.day).getDay()];
+      return { ...s, label: horizon === 'month' ? String(s.day) : `${dow} ${s.day}` };
+    });
+  }, [dayStats, horizon, selectedDay, nDays, year, month]);
+  const chartMax =
+    chartView === 'orders'
+      ? Math.max(10, ...chartPoints.map((p) => p.orders))
+      : Math.max(1, ...chartPoints.map((p) => Math.max(p.demand, p.capacity)));
+  const windowOrders = chartPoints.reduce((s, p) => s + p.orders, 0);
+  const windowDemand = chartPoints.reduce((s, p) => s + p.demand, 0);
+  const windowShort = chartPoints.filter((p) => p.shortBy > 0).length;
 
-    const empL46 = allEmployees.filter((e) => e.lineId === 'line4' || e.lineId === 'line6');
-    const empL5 = allEmployees.filter((e) => e.lineId === 'line5');
-
-    if (roster && roster.cells) {
-      empL46.forEach((e) => {
-        const c = roster.cells[e.id]?.[dayIdx]?.code;
-        if (c === 'M' || c === 'MT' || c === 'ML') l46M++;
-        else if (c === 'E') l46E++;
-        else if (c === 'N') l46N++;
-        else if (c === 'GS') l46GS++;
-      });
-      empL5.forEach((e) => {
-        const c = roster.cells[e.id]?.[dayIdx]?.code;
-        if (c === 'M' || c === 'MT' || c === 'ML') l5M++;
-        else if (c === 'E') l5E++;
-        else if (c === 'N') l5N++;
-        else if (c === 'GS') l5GS++;
-      });
+  // --------------------------------------------------------------------------
+  // Allocation distribution donut
+  // --------------------------------------------------------------------------
+  const pie = useMemo(() => {
+    type Row = { key: string; label: string; hint: string; color: string; count: number; crew: number };
+    const cats: Row[] =
+      chartMode === 'type'
+        ? [
+            { key: 'PM', label: 'Preventive (PM)', hint: 'Planned maintenance', color: 'var(--accent)', count: 0, crew: 0 },
+            { key: 'CM', label: 'Corrective (CM)', hint: 'Repairs and faults', color: 'var(--warn)', count: 0, crew: 0 },
+            { key: 'ACS', label: 'ACS / Inspection', hint: 'Checks and inspections', color: 'var(--sh-p)', count: 0, crew: 0 },
+          ]
+        : chartMode === 'shift'
+        ? SHIFT_FAMILIES.map((sh) => ({ key: sh, label: SHIFT_LABEL[sh], hint: SHIFT_TIMING[sh], color: SHIFT_COLOR[sh], count: 0, crew: 0 }))
+        : chartMode === 'line'
+        ? (['L4', 'L5', 'L6'] as const)
+            .filter((l) => pools.includes(poolOf(l)))
+            .map((l) => ({
+              key: l,
+              label: `Line ${l.slice(1)}`,
+              hint: l === 'L5' ? 'Line 5 team' : 'Line 4 & 6 shared team',
+              color: l === 'L4' ? 'var(--sh-m)' : l === 'L5' ? 'var(--sh-e)' : 'var(--sh-p)',
+              count: 0,
+              crew: 0,
+            }))
+        : [
+            { key: 'OK', label: 'Fully staffed', hint: 'Enough people on its shift', color: 'var(--ok)', count: 0, crew: 0 },
+            { key: 'SHORT', label: 'Short of crew', hint: 'Some people, not enough', color: 'var(--warn)', count: 0, crew: 0 },
+            { key: 'UNASSIGNED', label: 'Nobody on shift', hint: 'No one rostered on that shift', color: 'var(--danger)', count: 0, crew: 0 },
+            { key: 'NO_ROSTER', label: 'No roster for line', hint: 'Add people in People', color: 'var(--ink-3)', count: 0, crew: 0 },
+          ];
+    const byKey = new Map(cats.map((r) => [r.key, r]));
+    for (const a of monthAllocs) {
+      const key =
+        chartMode === 'type' ? normalizeWorkType(woMap.get(a.woId)?.workType)
+        : chartMode === 'shift' ? a.shift
+        : chartMode === 'line' ? a.lineCode
+        : a.status;
+      const row = byKey.get(key);
+      if (!row) continue;
+      row.count++;
+      row.crew += a.needed;
     }
+    const total = cats.reduce((s, x) => s + x.count, 0);
+    const totalCrew = cats.reduce((s, x) => s + x.crew, 0);
+    const title =
+      chartMode === 'type' ? 'by type of work' : chartMode === 'shift' ? 'by shift' : chartMode === 'line' ? 'by line' : 'by staffing result';
 
-    if (l46M + l46E + l46N + l46GS === 0) {
-      l46GS = 4; l46M = 7; l46E = 4; l46N = 8;
-    }
-    if (l5M + l5E + l5N + l5GS === 0) {
-      l5GS = 1; l5M = 5; l5E = 3; l5N = 6;
-    }
-
-    return {
-      l46: { total: l46GS + l46M + l46E + l46N, gs: l46GS, m: l46M, e: l46E, n: l46N },
-      l5: { total: l5GS + l5M + l5E + l5N, gs: l5GS, m: l5M, e: l5E, n: l5N },
+    // Donut geometry
+    const R = 86, r = 56, c = 105;
+    let angle = 0;
+    const pt = (rad: number, deg: number) => {
+      const a = ((deg - 90) * Math.PI) / 180;
+      return [c + rad * Math.cos(a), c + rad * Math.sin(a)];
     };
-  }, [allEmployees, roster, selectedDay]);
-
-  // --------------------------------------------------------------------------
-  // THE PERFECT GRAPH: WORKLOAD & MANPOWER DUAL ANALYTICS
-  // --------------------------------------------------------------------------
-  const analyticsGraph = useMemo(() => {
-    const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const prefix = `${settings.activeYear}-${String(settings.activeMonth).padStart(2, '0')}-`;
-    const allocs = Object.values(workload.byWo).filter((a) => a.date.startsWith(prefix));
-
-    let points: {
-      day: number;
-      label: string;
-      fullDate: string;
-      demandWO: number;
-      demandMP: number;
-      staffAvailable: number;
-      isBottleneck: boolean;
-      isSelected: boolean;
-    }[] = [];
-
-    if (timeHorizon === 'today') {
-      const dObj = new Date(settings.activeYear, settings.activeMonth - 1, selectedDay);
-      const dayName = daysOfWeek[dObj.getDay()];
-      points = [
-        {
-          day: selectedDay,
-          label: `${dayName} ${selectedDay}`,
-          fullDate: activeIsoDate,
-          demandWO: dailyWorkOrders.scheduled,
-          demandMP: dailyWorkOrders.scheduled * 2.5,
-          staffAvailable: shiftDeployment.l46.total + shiftDeployment.l5.total,
-          isBottleneck: false,
-          isSelected: true,
-        },
-      ];
-    } else if (timeHorizon === '7days') {
-      for (let i = 0; i < 7; i++) {
-        const d = selectedDay + i;
-        if (d > 31) break;
-        const dObj = new Date(settings.activeYear, settings.activeMonth - 1, d);
-        const dayName = daysOfWeek[dObj.getDay()];
-        const count = allocs.filter((a) => a.day === d).length || (i === 0 ? 8 : (i % 2 === 0 ? 6 : 4));
-        const mp = Math.round(count * 2.5);
-        const avail = 38;
-        points.push({
-          day: d,
-          label: `${dayName} ${d}`,
-          fullDate: `${settings.activeYear}-${String(settings.activeMonth).padStart(2, '0')}-${String(d).padStart(2, '0')}`,
-          demandWO: count,
-          demandMP: mp,
-          staffAvailable: avail,
-          isBottleneck: count >= 8,
-          isSelected: d === selectedDay,
-        });
-      }
-    } else {
-      // 30 Days Timeline
-      for (let d = 1; d <= 30; d++) {
-        const count = allocs.filter((a) => a.day === d).length || (d === 20 ? 8 : (d % 3 === 0 ? 6 : (d % 2 === 0 ? 4 : 2)));
-        const mp = Math.round(count * 2.5);
-        const avail = 38;
-        points.push({
-          day: d,
-          label: `${d}`,
-          fullDate: `${settings.activeYear}-${String(settings.activeMonth).padStart(2, '0')}-${String(d).padStart(2, '0')}`,
-          demandWO: count,
-          demandMP: mp,
-          staffAvailable: avail,
-          isBottleneck: count >= 8,
-          isSelected: d === selectedDay,
-        });
-      }
-    }
-
-    const maxWO = Math.max(...points.map((p) => p.demandWO), 10);
-
-    return {
-      points,
-      maxWO,
-      totalWindowOrders: points.reduce((acc, p) => acc + p.demandWO, 0),
-      totalWindowMP: points.reduce((acc, p) => acc + p.demandMP, 0),
-    };
-  }, [settings.activeYear, settings.activeMonth, selectedDay, timeHorizon, workload.byWo, dailyWorkOrders, shiftDeployment, activeIsoDate]);
-
-  // --------------------------------------------------------------------------
-  // THE PERFECT COLOR PIE & DONUT CHART (VIBRANT & INTERACTIVE)
-  // --------------------------------------------------------------------------
-  const pieData = useMemo(() => {
-    if (chartMode === 'system') {
-      const disciplines = [
-        { id: 'SIG', label: 'Signalling & Interlocking', count: 112, color: '#3B82F6', glow: 'rgba(59, 130, 246, 0.45)', tag: 'ATP/Point Machines' },
-        { id: 'TRK', label: 'Track & Permanent Way', count: 58, color: '#8B5CF6', glow: 'rgba(139, 92, 246, 0.45)', tag: 'Rail Grinding/Turnouts' },
-        { id: 'PSD', label: 'Platform Screen Doors', count: 86, color: '#10B981', glow: 'rgba(16, 185, 129, 0.45)', tag: 'Door Leaves & Safety' },
-        { id: 'PWR', label: 'Traction 750V & Catenary', count: 34, color: '#F59E0B', glow: 'rgba(245, 158, 11, 0.45)', tag: 'Substations & Third Rail' },
-        { id: 'DCS', label: 'Station DCS & Telecom', count: 60, color: '#EC4899', glow: 'rgba(236, 72, 153, 0.45)', tag: 'Fare Gates & CCTV' },
-        { id: 'RS', label: 'Rolling Stock SLV Fleet', count: 26, color: '#06B6D4', glow: 'rgba(6, 182, 212, 0.45)', tag: 'Overhaul Bogies' },
-      ];
-      const total = disciplines.reduce((acc, d) => acc + d.count, 0);
+    const arcs = cats.map((s, index) => {
+      const share = total ? s.count / total : 0;
+      const sweep = Math.min(359.99, share * 360);
+      const [x1, y1] = pt(R, angle);
+      const [x2, y2] = pt(R, angle + sweep);
+      const [x3, y3] = pt(r, angle + sweep);
+      const [x4, y4] = pt(r, angle);
+      const large = sweep > 180 ? 1 : 0;
+      angle += share * 360;
       return {
-        title: 'Maintenance Asset Disciplines',
-        subtitle: 'Distribution across Riyadh SLV Metro wayside and station infrastructure',
-        total,
-        slices: disciplines.map((d) => ({
-          ...d,
-          percent: ((d.count / total) * 100).toFixed(1),
-        })),
-      };
-    }
-
-    if (chartMode === 'shift') {
-      const shifts = [
-        { id: 'N', label: 'Night Possessions (22:00–07:00)', count: 184, color: '#6366F1', glow: 'rgba(99, 102, 241, 0.45)', tag: 'Track Isolation' },
-        { id: 'M', label: 'Morning DCS (06:00–15:00)', count: 58, color: '#10B981', glow: 'rgba(16, 185, 129, 0.45)', tag: 'Passenger Peak' },
-        { id: 'E', label: 'Evening Facilities (14:00–23:00)', count: 48, color: '#3B82F6', glow: 'rgba(59, 130, 246, 0.45)', tag: 'Platform Prep' },
-        { id: 'GS', label: 'General Workshop (08:00–17:00)', count: 26, color: '#F59E0B', glow: 'rgba(245, 158, 11, 0.45)', tag: 'Overhaul Staging' },
-      ];
-      const total = shifts.reduce((acc, s) => acc + s.count, 0);
-      return {
-        title: 'Operational Execution Windows',
-        subtitle: 'Classification aligned with night track possessions and daytime passenger service',
-        total,
-        slices: shifts.map((s) => ({
-          ...s,
-          percent: ((s.count / total) * 100).toFixed(1),
-        })),
-      };
-    }
-
-    const statuses = [
-      { id: 'PENDING', label: 'Scheduled / Pending Execution', count: 196, color: '#F59E0B', glow: 'rgba(245, 158, 11, 0.45)', tag: 'Awaiting Window' },
-      { id: 'COMPLETED', label: 'Executed & Signed Off', count: 120, color: '#10B981', glow: 'rgba(16, 185, 129, 0.45)', tag: 'APSYS Certified' },
-    ];
-    const total = statuses.reduce((acc, s) => acc + s.count, 0);
-    return {
-      title: 'Monthly Execution Lifecycle',
-      subtitle: 'Real-time Maximo preventative maintenance execution progression',
-      total,
-      slices: statuses.map((s) => ({
         ...s,
-        percent: ((s.count / total) * 100).toFixed(1),
-      })),
-    };
-  }, [chartMode]);
-
-  // SVG Geometry for Donut
-  const donutArcs = useMemo(() => {
-    let currentAngle = -90;
-    const outerR = 86;
-    const innerR = 56;
-    const cxCenter = 105;
-    const cyCenter = 105;
-
-    return pieData.slices.map((slice, index) => {
-      const angle = (slice.count / pieData.total) * 360;
-      const startAngle = currentAngle;
-      const endAngle = currentAngle + angle;
-      currentAngle += angle;
-
-      const polarToCartesian = (cx: number, cy: number, r: number, angleDegrees: number) => {
-        const rad = ((angleDegrees - 90) * Math.PI) / 180.0;
-        return {
-          x: cx + r * Math.cos(rad),
-          y: cy + r * Math.sin(rad),
-        };
-      };
-
-      const startOuter = polarToCartesian(cxCenter, cyCenter, outerR, endAngle);
-      const endOuter = polarToCartesian(cxCenter, cyCenter, outerR, startAngle);
-      const startInner = polarToCartesian(cxCenter, cyCenter, innerR, endAngle);
-      const endInner = polarToCartesian(cxCenter, cyCenter, innerR, startAngle);
-
-      const largeArc = angle <= 180 ? '0' : '1';
-
-      const d = [
-        'M', startOuter.x, startOuter.y,
-        'A', outerR, outerR, 0, largeArc, 0, endOuter.x, endOuter.y,
-        'L', endInner.x, endInner.y,
-        'A', innerR, innerR, 0, largeArc, 1, startInner.x, startInner.y,
-        'Z',
-      ].join(' ');
-
-      return {
-        ...slice,
         index,
-        d,
+        share,
+        percent: (share * 100).toFixed(1),
+        d: s.count ? `M ${x1} ${y1} A ${R} ${R} 0 ${large} 1 ${x2} ${y2} L ${x3} ${y3} A ${r} ${r} 0 ${large} 0 ${x4} ${y4} Z` : '',
       };
     });
-  }, [pieData]);
+    return { title, total, totalCrew, arcs };
+  }, [monthAllocs, woMap, chartMode, pools]);
+  const sel = activeSlice !== null ? pie.arcs[activeSlice] : null;
 
-  // Highlighted slice or total
-  const selectedSlice = activeSliceIndex !== null ? pieData.slices[activeSliceIndex] : null;
+  const dateLabel = (d: number) => `${d} ${MONTHS[month - 1]} ${year}`;
+  const noData = workOrders.length === 0 && rosterPeople === 0;
+
+  const shiftMinimum = (pool: StaffPool, shift: ShiftFamily) =>
+    POOL_LINES[pool].ids.reduce(
+      (s, id) => s + (codesByLine[id]?.find((c) => c.id === shift)?.minHeadcount ?? 0),
+      0,
+    );
+
+  // Details for the day under the pointer (or the planning date when none)
+  const detailDay = Math.min(nDays, hoverDay ?? selectedDay);
+  const detail = useMemo(() => {
+    const stat = dayStats[detailDay - 1];
+    const shifts = SHIFT_FAMILIES.map((sh) => {
+      let need = 0, have = 0, orders = 0;
+      for (const pool of pools) {
+        const c = grid[detailDay - 1][pool][sh];
+        need += c.demand; have += c.onDuty; orders += c.orders;
+      }
+      return { sh, need, have, orders };
+    });
+    const dow = WEEKDAYS[new Date(year, month - 1, detailDay).getDay()];
+    return { stat, shifts, dow };
+  }, [dayStats, grid, pools, detailDay, year, month]);
+
+  // Plain-language status for the planning date
+  const dayShort = SHIFT_FAMILIES.flatMap((sh) =>
+    pools.flatMap((p) => {
+      const c = grid[selectedDay - 1][p][sh];
+      return c.demand > c.onDuty ? [`${SHIFT_LABEL[sh]}${pools.length > 1 ? ` (${POOL_LINES[p].label})` : ''}`] : [];
+    }),
+  );
+  const status: { tone: Tone; text: string } = !dayAllocs.length
+    ? { tone: 'neutral', text: `No work orders on ${dateLabel(selectedDay)}.` }
+    : dayShort.length
+    ? { tone: 'bad', text: `${dateLabel(selectedDay)}: not enough people on ${dayShort.join(', ')}. Open the Duty Roster to move someone onto that shift.` }
+    : { tone: 'good', text: `${dateLabel(selectedDay)}: every work order has enough people on its shift.` };
+
+  const now = new Date();
+  const todayDay = now.getFullYear() === year && now.getMonth() + 1 === month ? now.getDate() : null;
 
   return (
-    <div className="flex-1 overflow-y-auto px-3 sm:px-6 xl:px-8 py-5 space-y-6 max-w-[1720px] mx-auto w-full">
-      {/* =====================================================================
-          HERO MISSION CONTROL HUD BANNER
-          ===================================================================== */}
-      <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-r from-slate-900 via-blue-950 to-indigo-950 text-white p-5 sm:p-7 shadow-2xl">
-        {/* Background glow orbs */}
-        <div className="absolute top-0 right-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 right-10 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-
-        <div className="relative z-10 flex flex-col xl:flex-row xl:items-center justify-between gap-6">
-          {/* Left Brand & Title */}
-          <div className="flex items-start sm:items-center gap-4">
-            <div className="p-2.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 shadow-inner">
-              <AlstomLogo height={30} />
-            </div>
-            <div>
-              <div className="flex flex-wrap items-center gap-2.5">
-                <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
-                  APSYS Digital Operations Board
-                </h1>
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black tracking-wider uppercase bg-emerald-400/20 text-emerald-300 border border-emerald-400/30 shadow-xs">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                  Live Network Telemetry
-                </span>
-              </div>
-              <p className="text-sm font-semibold text-blue-200/80 mt-1 flex items-center gap-2 flex-wrap">
-                <span>Riyadh SLV Maintenance</span>
-                <span>•</span>
-                <span>Lines 4 (Orange), 5 (Yellow) &amp; 6 (Purple)</span>
-                <span>•</span>
-                <span className="text-amber-300 font-bold">Network Readiness: 99.4% Nominal</span>
-              </p>
-            </div>
-          </div>
-
-          {/* Right Precision Telemetry & Environmental Indicators */}
-          <div className="flex flex-wrap items-center gap-3 sm:gap-4 self-stretch xl:self-auto justify-between xl:justify-end">
-            {/* Weather & Track Temp */}
-            <div className="px-4 py-2.5 rounded-2xl bg-white/5 backdrop-blur-md border border-white/10 flex items-center gap-3 shadow-inner">
-              <span className="text-2xl">☀️</span>
-              <div className="text-left leading-tight">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-sm font-black text-white">35°C</span>
-                  <span className="text-xs text-blue-300 font-semibold">Clear Sky</span>
-                </div>
-                <span className="text-[10.5px] text-blue-200/70 font-mono">
-                  Track Temp 42°C · Wind 9 km/h
-                </span>
-              </div>
-            </div>
-
-            {/* Precision Digital Clock */}
-            <div className="px-5 py-2.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 shadow-inner text-right">
-              <span className="font-mono text-lg sm:text-xl font-black text-white tracking-wider block leading-none">
-                {timeFormatted.time}
-              </span>
-              <span className="text-[10.5px] text-blue-200/80 font-medium mt-1 block">
-                {timeFormatted.dateStr}
-              </span>
-            </div>
-
-            {/* Shift Leader Profile Avatar */}
-            <div className="flex items-center gap-3 pl-3 border-l border-white/15">
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-500 to-cyan-400 text-slate-950 font-black text-sm grid place-items-center shadow-lg">
-                AK
-              </div>
-              <div className="hidden sm:block text-left leading-tight">
-                <span className="text-xs font-black text-white block">Arif Khan</span>
-                <span className="text-[10.5px] text-blue-300 font-bold">SLV Shift Leader</span>
-              </div>
-            </div>
-          </div>
+    <div className="flex-1 overflow-y-auto px-3 sm:px-6 xl:px-8 py-5 space-y-5 max-w-[1720px] mx-auto w-full">
+      {/* ===== Header: title + filters ===== */}
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-[20px] font-semibold text-ink leading-tight">Dashboard</h1>
+          <p className="text-[13px] text-ink-2 mt-0.5">
+            {MONTHS[month - 1]} {year} · built from your Duty Roster and Maintenance Workorders
+          </p>
         </div>
 
-        {/* Operational Pool Switcher Pills */}
-        <div className="relative z-10 flex flex-wrap items-center justify-between gap-3 mt-6 pt-5 border-t border-white/10">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-blue-200/80 uppercase tracking-wider">
-              Fleet Focus:
-            </span>
-            <div className="flex items-center p-1 rounded-xl bg-black/30 border border-white/10 backdrop-blur-sm">
-              <button
-                type="button"
-                onClick={() => setActivePoolFilter('all')}
-                className={cx(
-                  'px-3 py-1 rounded-lg text-xs font-bold transition-all',
-                  activePoolFilter === 'all'
-                    ? 'bg-blue-600 text-white shadow-md'
-                    : 'text-blue-200 hover:text-white',
-                )}
-              >
-                All Lines (4, 5 &amp; 6)
-              </button>
-              <button
-                type="button"
-                onClick={() => setActivePoolFilter('L46')}
-                className={cx(
-                  'px-3 py-1 rounded-lg text-xs font-bold transition-all',
-                  activePoolFilter === 'L46'
-                    ? 'bg-blue-600 text-white shadow-md'
-                    : 'text-blue-200 hover:text-white',
-                )}
-              >
-                Line 4 &amp; 6 Combined Pool
-              </button>
-              <button
-                type="button"
-                onClick={() => setActivePoolFilter('L5')}
-                className={cx(
-                  'px-3 py-1 rounded-lg text-xs font-bold transition-all',
-                  activePoolFilter === 'L5'
-                    ? 'bg-blue-600 text-white shadow-md'
-                    : 'text-blue-200 hover:text-white',
-                )}
-              >
-                Line 5 Solo Pool
-              </button>
-            </div>
-          </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <Segmented
+            value={poolFilter}
+            onChange={setPoolFilter}
+            options={[
+              { value: 'all', label: 'All lines' },
+              { value: 'L46', label: 'Line 4 & 6' },
+              { value: 'L5', label: 'Line 5' },
+            ]}
+          />
 
-          {/* Quick Date Stepper */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-blue-200/80">Planning Date:</span>
-            <div className="flex items-center gap-1 bg-black/30 p-1 rounded-xl border border-white/10">
-              <button
-                type="button"
-                onClick={() => setSelectedDay((d) => Math.max(1, d - 1))}
-                className="w-6 h-6 grid place-items-center rounded-lg hover:bg-white/10 text-white font-bold"
-                title="Previous Day"
-              >
-                ‹
-              </button>
-              <select
-                value={selectedDay}
-                onChange={(e) => setSelectedDay(Number(e.target.value))}
-                className="bg-transparent text-white font-mono font-bold text-xs px-2 py-0.5 outline-none cursor-pointer"
-              >
-                {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
-                  <option key={d} value={d} className="bg-slate-900 text-white">
-                    {d} Oct {settings.activeYear}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                onClick={() => setSelectedDay((d) => Math.min(31, d + 1))}
-                className="w-6 h-6 grid place-items-center rounded-lg hover:bg-white/10 text-white font-bold"
-                title="Next Day"
-              >
-                ›
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* =====================================================================
-          TOP 4 EXECUTIVE HUD METRIC CARDS
-          ===================================================================== */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
-        {/* Card 1: Total Monthly Orders */}
-        <div className="group relative overflow-hidden rounded-2xl border border-[var(--line-strong)] bg-[var(--surface)] p-5 shadow-sm hover:shadow-lg transition-all">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-ink-3">
-              Monthly Workload
+          {/* Planning date — accent coloured so it reads as the main control */}
+          <div className="flex items-center gap-1 rounded-lg border border-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] p-0.5">
+            <span className="pl-2.5 pr-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--accent)]">
+              Planning date
             </span>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
-              Maximo PM
-            </span>
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl sm:text-4xl font-black text-ink font-mono tracking-tight">
-              316
-            </span>
-            <span className="text-xs font-bold text-ink-3">Orders Scheduled</span>
-          </div>
-          <div className="mt-3 flex items-center justify-between text-xs pt-3 border-t border-[var(--line)]">
-            <span className="text-ink-2 font-semibold">Total Manpower:</span>
-            <strong className="text-[var(--accent)] font-mono font-black">790 Techs (2.5/wo)</strong>
-          </div>
-        </div>
-
-        {/* Card 2: Today's Active Orders */}
-        <div className="group relative overflow-hidden rounded-2xl border border-[var(--line-strong)] bg-[var(--surface)] p-5 shadow-sm hover:shadow-lg transition-all">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-ink-3">
-              Day {selectedDay} Interventions
-            </span>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-              Active Dispatch
-            </span>
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl sm:text-4xl font-black text-emerald-600 dark:text-emerald-400 font-mono tracking-tight">
-              {dailyWorkOrders.scheduled}
-            </span>
-            <span className="text-xs font-bold text-ink-3">
-              ({dailyWorkOrders.completed} done · {dailyWorkOrders.remaining} queue)
-            </span>
-          </div>
-          <div className="mt-3 flex items-center justify-between text-xs pt-3 border-t border-[var(--line)]">
-            <span className="text-ink-2 font-semibold">Shift Possession:</span>
-            <strong className="text-emerald-600 dark:text-emerald-400 font-bold">100% On Schedule</strong>
-          </div>
-        </div>
-
-        {/* Card 3: Certified Workforce Mobilized */}
-        <div className="group relative overflow-hidden rounded-2xl border border-[var(--line-strong)] bg-[var(--surface)] p-5 shadow-sm hover:shadow-lg transition-all">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-ink-3">
-              Certified Technicians
-            </span>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
-              61 Mobilized
-            </span>
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl sm:text-4xl font-black text-indigo-600 dark:text-indigo-400 font-mono tracking-tight">
-              {shiftDeployment.l46.total + shiftDeployment.l5.total}
-            </span>
-            <span className="text-xs font-bold text-ink-3">On Duty Today</span>
-          </div>
-          <div className="mt-3 flex items-center justify-between text-xs pt-3 border-t border-[var(--line)]">
-            <span className="text-ink-2 font-semibold">Pool Split:</span>
-            <strong className="text-ink font-mono font-bold">
-              {shiftDeployment.l46.total} (L4/6) + {shiftDeployment.l5.total} (L5)
-            </strong>
-          </div>
-        </div>
-
-        {/* Card 4: Railway Safety & Fatigue Compliance */}
-        <div className="group relative overflow-hidden rounded-2xl border border-[var(--line-strong)] bg-[var(--surface)] p-5 shadow-sm hover:shadow-lg transition-all">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-ink-3">
-              Fatigue &amp; Safety Compliance
-            </span>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-              Zero Breaches
-            </span>
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl sm:text-4xl font-black text-emerald-600 dark:text-emerald-400 font-mono tracking-tight">
-              100%
-            </span>
-            <span className="text-xs font-bold text-ink-3">APSYS Compliant</span>
-          </div>
-          <div className="mt-3 flex items-center justify-between text-xs pt-3 border-t border-[var(--line)]">
-            <span className="text-ink-2 font-semibold">Track Possession:</span>
-            <strong className="text-emerald-600 dark:text-emerald-400 font-bold">Power Cleared</strong>
-          </div>
-        </div>
-      </div>
-
-      {/* =====================================================================
-          MAIN ANALYTICS SECTION:
-          LEFT: THE PERFECT GRAPH (WORKLOAD TIMELINE)
-          RIGHT: THE PERFECT COLORFUL PIE / DONUT CHART (CLIENT REQUEST)
-          ===================================================================== */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-        {/* ==================== THE PERFECT GRAPH (7 COLS) ==================== */}
-        <div className="lg:col-span-7 rounded-3xl border border-[var(--line-strong)] bg-[var(--surface)] p-6 shadow-sm flex flex-col justify-between">
-          <div>
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-lg font-black text-ink">
-                    Preventive Workload &amp; Capacity Analytics
-                  </h2>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
-                    Dual Layer
-                  </span>
-                </div>
-                <p className="text-xs text-ink-3 font-medium">
-                  Daily Work Order Demand vs Available Certified Gang Capacity
-                </p>
-              </div>
-
-              {/* Time Horizon Switcher */}
-              <div className="flex items-center p-1 rounded-xl bg-[var(--surface-2)] border border-[var(--line)]">
-                {(['today', '7days', '30days'] as const).map((h) => (
-                  <button
-                    key={h}
-                    type="button"
-                    onClick={() => setTimeHorizon(h)}
-                    className={cx(
-                      'px-3 py-1 rounded-lg text-xs font-bold transition-all',
-                      timeHorizon === h
-                        ? 'bg-[var(--accent)] text-white shadow-xs font-black'
-                        : 'text-ink-3 hover:text-ink',
-                    )}
-                  >
-                    {h === 'today' ? 'Today' : h === '7days' ? 'Next 7 Days' : '30-Day Month'}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Quick KPI summary bar */}
-            <div className="grid grid-cols-3 gap-3 mb-5">
-              <div className="p-3 rounded-xl bg-[var(--surface-2)] border border-[var(--line)]">
-                <span className="text-[11px] font-bold text-ink-3 uppercase block">Period Volume</span>
-                <span className="text-xl font-black text-ink font-mono">{analyticsGraph.totalWindowOrders} Orders</span>
-              </div>
-              <div className="p-3 rounded-xl bg-[var(--surface-2)] border border-[var(--line)]">
-                <span className="text-[11px] font-bold text-ink-3 uppercase block">Technician Shifts</span>
-                <span className="text-xl font-black text-blue-600 dark:text-blue-400 font-mono">{analyticsGraph.totalWindowMP} Shifts</span>
-              </div>
-              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-                <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 uppercase block">Status</span>
-                <span className="text-xl font-black text-emerald-600 dark:text-emerald-400 font-mono">Capacity Safe</span>
-              </div>
-            </div>
-
-            {/* Visual Bar Chart with Target Threshold */}
-            <div className="h-56 w-full flex items-end gap-2 sm:gap-3.5 px-3 sm:px-6 pt-8 pb-3 rounded-2xl bg-[var(--surface-2)] border border-[var(--line)] overflow-x-auto relative">
-              {analyticsGraph.points.map((pt, idx) => {
-                const heightPercent = Math.max(16, (pt.demandWO / analyticsGraph.maxWO) * 100);
-                return (
-                  <div
-                    key={idx}
-                    onClick={() => setSelectedDay(pt.day)}
-                    className="flex-1 min-w-[34px] flex flex-col items-center justify-end h-full group relative cursor-pointer"
-                  >
-                    {/* Hover Tooltip */}
-                    <div className="absolute -top-12 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-30 bg-slate-900 text-white px-3 py-1.5 rounded-xl text-[11px] font-bold whitespace-nowrap shadow-xl border border-white/10">
-                      <div>Day {pt.day}: {pt.demandWO} Orders ({pt.demandMP} MP)</div>
-                      <div className="text-[10px] text-blue-300">Click to focus planning date</div>
-                    </div>
-
-                    {/* Value on top of bar */}
-                    <span className={cx(
-                      'text-xs font-black font-mono mb-1.5 transition-transform group-hover:scale-125',
-                      pt.isSelected ? 'text-[var(--accent)] font-extrabold' : 'text-ink-2',
-                    )}>
-                      {pt.demandWO}
-                    </span>
-
-                    {/* The Visual Bar */}
-                    <div
-                      className={cx(
-                        'w-full max-w-[42px] rounded-t-xl transition-all duration-300 shadow-md group-hover:brightness-110',
-                        pt.isSelected
-                          ? 'bg-gradient-to-t from-blue-600 via-sky-500 to-cyan-400 ring-2 ring-blue-500/50 shadow-blue-500/30'
-                          : pt.isBottleneck
-                          ? 'bg-gradient-to-t from-amber-600 to-amber-400'
-                          : 'bg-gradient-to-t from-slate-400 to-slate-300 dark:from-slate-700 dark:to-slate-600',
-                      )}
-                      style={{ height: `${heightPercent}%` }}
-                    />
-
-                    {/* Label below bar */}
-                    <span className={cx(
-                      'text-[10.5px] font-bold mt-2 truncate max-w-full text-center',
-                      pt.isSelected ? 'text-[var(--accent)] font-black' : 'text-ink-3',
-                    )}>
-                      {pt.label}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between pt-4 border-t border-[var(--line)] text-xs text-ink-3 mt-4">
-            <span>Click any day to immediately update the live roster &amp; work order panels</span>
-            <button
-              type="button"
-              onClick={onOpenWorkOrders}
-              className="font-bold text-[var(--accent)] hover:underline flex items-center gap-1"
+            <Button size="sm" onClick={() => setSelectedDay((d) => Math.max(1, d - 1))} className="px-2 text-[var(--accent)]" title="Previous day">
+              ‹
+            </Button>
+            <Select
+              value={selectedDay}
+              onChange={(e) => setSelectedDay(Number(e.target.value))}
+              className="h-7 rounded-md border-0 bg-transparent text-[13px] font-semibold text-[var(--accent)]"
             >
-              <span>Open Work Orders Explorer</span>
-              <span>→</span>
-            </button>
+              {Array.from({ length: nDays }, (_, i) => i + 1).map((d) => (
+                <option key={d} value={d}>
+                  {dateLabel(d)}
+                </option>
+              ))}
+            </Select>
+            <Button size="sm" onClick={() => setSelectedDay((d) => Math.min(nDays, d + 1))} className="px-2 text-[var(--accent)]" title="Next day">
+              ›
+            </Button>
+            {todayDay !== null && selectedDay !== todayDay && (
+              <Button variant="primary" size="sm" onClick={() => setSelectedDay(todayDay)}>
+                Today
+              </Button>
+            )}
           </div>
         </div>
+      </div>
 
-        {/* ==================== THE PERFECT COLOR PIE CHART (5 COLS) ==================== */}
-        <div className="lg:col-span-5 rounded-3xl border border-[var(--line-strong)] bg-[var(--surface)] p-6 shadow-sm flex flex-col justify-between">
+      {/* ===== How to read this ===== */}
+      <details className="group rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3">
+        <summary className="cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden text-[13px] font-medium text-ink flex items-center justify-between gap-3">
+          <span className="flex items-center gap-2">
+            <span className="text-ink-3 text-[10px] transition-transform group-open:rotate-90">▶</span>
+            How to read this dashboard
+          </span>
+          <span className="text-ink-3 text-xs group-open:hidden">Show</span>
+          <span className="text-ink-3 text-xs hidden group-open:inline">Hide</span>
+        </summary>
+
+        <ol className="mt-3 grid gap-2 text-[13px] text-ink-2 sm:grid-cols-2 xl:grid-cols-4 list-none">
+          <li><strong className="text-ink">1. Pick a date.</strong> The accent-coloured Planning date drives the status line, the cards and the shift boxes.</li>
+          <li><strong className="text-ink">2. Read the status line.</strong> Green means every work order has enough people. Red means a shift is short.</li>
+          <li><strong className="text-ink">3. Check the graph.</strong> Bars show how busy each day is. Amber or red marks days where a shift is short.</li>
+          <li><strong className="text-ink">4. Fix it in the Duty Roster.</strong> The numbers are live, so once you move people the shortfall disappears here.</li>
+        </ol>
+
+        <div className="mt-4 pt-3 border-t border-[var(--line)] text-[13px] text-ink-2 leading-relaxed space-y-2">
+          <p>
+            <strong className="text-ink">How to read the graph.</strong> Each bar is one day. In the{' '}
+            <strong className="text-ink">Work orders</strong> view, the <strong className="text-ink">number on top</strong> is how
+            many work orders are scheduled that day, and a taller bar means a busier day. A{' '}
+            <strong className="text-[var(--warn)]">amber</strong> bar means at least one shift that day has fewer people on the
+            roster than its work orders need. The <strong className="text-[var(--accent)]">blue</strong> bar is the planning date.
+          </p>
+          <p>
+            In the <strong className="text-ink">Needed vs available</strong> view, the bar is the crew the work orders need and
+            the <strong className="text-[var(--ok)]">green line</strong> is how many people the Duty Roster has working. If the bar
+            reaches above the line, or turns <strong className="text-[var(--danger)]">red</strong>, a shift is short. Check the
+            Morning, Evening and Night boxes to see which one.
+          </p>
+          <p>Point at any bar to see its details. Click it to make it the planning date.</p>
+        </div>
+      </details>
+
+      {noData && (
+        <div className="rounded-xl border border-dashed border-[var(--line-strong)] bg-[var(--surface)] p-8 text-center text-[13px] text-ink-2">
+          Nothing to show yet. Add people in <strong className="text-ink">People</strong> and import work orders in{' '}
+          <strong className="text-ink">Maintenance Workorders</strong>; this page fills in from them.
+        </div>
+      )}
+
+      {/* ===== Status line ===== */}
+      <div className={cx('rounded-xl border px-4 py-3 text-[13px] font-medium', STATUS_STYLE[status.tone])}>{status.text}</div>
+
+      {/* ===== KPI cards ===== */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Kpi
+          label={`Work orders in ${MONTHS[month - 1]}`}
+          value={monthAllocs.length}
+          note={`${typeCounts.PM} preventive · ${typeCounts.CM} corrective · ${typeCounts.ACS} inspection`}
+        />
+        <Kpi
+          label={`Work orders on ${dateLabel(selectedDay)}`}
+          value={dayAllocs.length}
+          note={dayAllocs.length ? `${dayStaffed} fully staffed · ${dayDone} completed` : 'Nothing scheduled'}
+          tone={dayAllocs.length && dayStaffed < dayAllocs.length ? 'bad' : undefined}
+        />
+        <Kpi
+          label="People working that day"
+          value={dutyToday}
+          note={`${today?.demand ?? 0} needed by work orders · ${rosterPeople} on roster`}
+          tone={today && today.shortBy > 0 ? 'bad' : undefined}
+        />
+        <Kpi
+          label="Crew short this month"
+          value={monthShortBy}
+          note={monthShortDays ? `Across ${monthShortDays} day${monthShortDays === 1 ? '' : 's'}` : 'Every day is covered'}
+          tone={monthShortBy ? 'bad' : 'good'}
+        />
+      </div>
+
+      {/* ===== Charts ===== */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+        {/* Demand vs capacity */}
+        <section className="lg:col-span-7 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5 flex flex-col justify-between">
           <div>
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-lg font-black text-ink">
-                    Resource Allocation Distribution
-                  </h2>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
-                    Color Spectrum
-                  </span>
-                </div>
-                <p className="text-xs text-ink-3 font-medium">
-                  {pieData.title}
+            <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-3 mb-4">
+              <div className="min-w-0">
+                <h2 className="text-[15px] font-semibold text-ink">{chartView === 'orders' ? 'Work orders per day' : 'People needed vs people available'}</h2>
+                <p className="text-[12px] text-ink-2 mt-0.5">
+                  {chartView === 'orders'
+                    ? 'Number of work orders each day. Amber means that day has a shift without enough people.'
+                    : 'Bar = crew the work orders need. Green line = people on the roster. Red bar = a shift is short.'}
                 </p>
               </div>
-
-              {/* Mode Toggle */}
-              <div className="flex items-center p-1 rounded-xl bg-[var(--surface-2)] border border-[var(--line)]">
-                {(['system', 'shift', 'status'] as const).map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => { setChartMode(m); setActiveSliceIndex(null); }}
-                    className={cx(
-                      'px-2.5 py-1 rounded-lg text-[10.5px] font-black uppercase tracking-wider transition-all',
-                      chartMode === m
-                        ? 'bg-[var(--accent)] text-white shadow-xs'
-                        : 'text-ink-3 hover:text-ink',
-                    )}
-                  >
-                    {m === 'system' ? 'System' : m === 'shift' ? 'Shift' : 'Status'}
-                  </button>
-                ))}
+              <div className="flex flex-nowrap items-center gap-2 shrink-0 self-start whitespace-nowrap">
+              <Segmented
+                value={chartView}
+                onChange={setChartView}
+                options={[
+                  { value: 'orders', label: 'Work orders' },
+                  { value: 'crew', label: 'Needed vs available' },
+                ]}
+              />
+              <Segmented
+                value={horizon}
+                onChange={setHorizon}
+                options={[
+                  { value: 'today', label: 'Today' },
+                  { value: '7days', label: 'Next 7 Days' },
+                  { value: 'month', label: '30-Day Month' },
+                ]}
+              />
               </div>
             </div>
 
-            {/* Glowing SVG Donut Visualization */}
-            <div className="flex flex-col sm:flex-row items-center gap-6 my-4">
-              <div className="relative shrink-0 flex items-center justify-center">
-                <svg viewBox="0 0 210 210" className="w-52 h-52 transform -rotate-90">
-                  {donutArcs.map((arc) => {
-                    const isHovered = activeSliceIndex === arc.index;
-                    return (
-                      <path
-                        key={arc.index}
-                        d={arc.d}
-                        fill={arc.color}
-                        className="transition-all duration-300 cursor-pointer"
-                        style={{
-                          transformOrigin: '105px 105px',
-                          transform: isHovered ? 'scale(1.06)' : 'scale(1)',
-                          filter: isHovered ? `drop-shadow(0 0 10px ${arc.color})` : 'none',
-                          opacity: activeSliceIndex !== null && !isHovered ? 0.6 : 1,
-                        }}
-                        onMouseEnter={() => setActiveSliceIndex(arc.index)}
-                        onMouseLeave={() => setActiveSliceIndex(null)}
-                      />
-                    );
-                  })}
-                </svg>
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              <Stat label="Period volume" value={`${windowOrders} orders`} />
+              <Stat label="Crew shifts needed" value={String(windowDemand)} />
+              <Stat
+                label="Status"
+                value={windowShort ? `${windowShort} day${windowShort === 1 ? '' : 's'} short` : 'Capacity safe'}
+                tone={windowShort ? 'bad' : 'good'}
+              />
+            </div>
 
-                {/* Central Donut Readout */}
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
-                  <span className="text-3xl font-black text-ink font-mono leading-none tracking-tight">
-                    {selectedSlice ? selectedSlice.count : pieData.total}
-                  </span>
-                  <span className="text-[10.5px] font-black uppercase tracking-wider text-[var(--accent)] mt-1">
-                    {selectedSlice ? `${selectedSlice.percent}% Share` : 'Total Orders'}
-                  </span>
-                  <span className="text-[9.5px] text-ink-3 max-w-[90px] truncate">
-                    {selectedSlice ? selectedSlice.label : 'Riyadh SLV'}
+            {/* Details of the hovered day — kept outside the scrolling chart so it is never cut off */}
+            <div className="mb-3 rounded-lg border border-[var(--line)] bg-[var(--surface-2)] px-4 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="text-[13px] font-semibold text-ink">
+                  {detail.dow}, {dateLabel(detailDay)}
+                  <span className="ml-2 text-[11px] font-medium text-ink-3">
+                    {hoverDay === null ? 'planning date' : 'under your pointer'}
                   </span>
                 </div>
+                <span
+                  className={cx(
+                    'px-2 py-0.5 rounded-full text-[11px] font-semibold',
+                    BADGE_STYLE[detail.stat.shortBy > 0 ? 'bad' : detail.stat.orders ? 'good' : 'neutral'],
+                  )}
+                >
+                  {detail.stat.shortBy > 0 ? `Short by ${detail.stat.shortBy}` : detail.stat.orders ? 'Fully covered' : 'No work'}
+                </span>
               </div>
-
-              {/* Dynamic Interactive Legend */}
-              <div className="flex-1 w-full space-y-2">
-                {pieData.slices.map((slice, idx) => {
-                  const isHovered = activeSliceIndex === idx;
+              <div className="mt-2 text-[12px] text-ink-2">
+                <strong className="text-ink">{detail.stat.orders}</strong> work orders need{' '}
+                <strong className="text-ink">{detail.stat.demand}</strong> crew · roster has{' '}
+                <strong className="text-ink">{detail.stat.capacity}</strong> people working
+              </div>
+              <div className="mt-2 grid grid-cols-3 gap-2">
+                {detail.shifts.map((x) => {
+                  const short = x.need > x.have;
                   return (
-                    <div
-                      key={idx}
-                      onMouseEnter={() => setActiveSliceIndex(idx)}
-                      onMouseLeave={() => setActiveSliceIndex(null)}
-                      className={cx(
-                        'p-2 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-2.5',
-                        isHovered
-                          ? 'bg-[var(--surface-3)] border-[var(--accent)] shadow-sm scale-[1.02]'
-                          : 'bg-[var(--surface-2)] border-[var(--line)] hover:border-[var(--line-strong)]',
-                      )}
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span
-                          className="w-3 h-3 rounded-md shrink-0 shadow-xs"
-                          style={{ backgroundColor: slice.color, boxShadow: `0 0 6px ${slice.color}` }}
-                        />
-                        <div className="min-w-0 leading-tight">
-                          <span className="text-xs font-bold text-ink block truncate">
-                            {slice.label}
-                          </span>
-                          <span className="text-[10px] text-ink-3 block truncate">
-                            {slice.tag}
-                          </span>
-                        </div>
+                    <div key={x.sh} className="rounded-md border border-[var(--line)] bg-[var(--surface)] px-2.5 py-1.5">
+                      <div className="flex items-center gap-1.5 text-[11px] font-semibold text-ink">
+                        <span className="w-2 h-2 rounded-full" style={{ background: SHIFT_COLOR[x.sh] }} />
+                        {SHIFT_LABEL[x.sh]}
                       </div>
-
-                      <div className="text-right shrink-0">
-                        <span className="text-xs font-black font-mono text-ink block">
-                          {slice.count}
-                        </span>
-                        <span className="text-[10px] font-semibold text-ink-3">
-                          {slice.percent}%
-                        </span>
+                      <div className={cx('text-[12px] tabular-nums mt-0.5', short ? 'text-[var(--danger)] font-semibold' : 'text-ink-2')}>
+                        need {x.need} · have {x.have}
                       </div>
                     </div>
                   );
                 })}
               </div>
             </div>
+
+            {chartView === 'orders' ? (
+              <>
+            <div className="h-56 w-full flex items-end gap-2 sm:gap-3.5 px-3 sm:px-6 pt-8 pb-3 rounded-xl bg-[var(--surface-2)] border border-[var(--line)] overflow-x-auto relative">
+              {chartPoints.map((pt) => {
+                const isSel = pt.day === selectedDay;
+                const heightPercent = Math.max(16, (pt.orders / chartMax) * 100);
+                return (
+                  <div
+                    key={pt.day}
+                    onClick={() => setSelectedDay(pt.day)}
+                    onMouseEnter={() => setHoverDay(pt.day)}
+                    onMouseLeave={() => setHoverDay(null)}
+                    className="flex-1 min-w-[34px] flex flex-col items-center justify-end h-full group relative cursor-pointer"
+                  >
+                    <span
+                      className={cx(
+                        'text-xs font-semibold tabular-nums mb-1.5 transition-transform group-hover:scale-125',
+                        isSel ? 'text-[var(--accent)]' : 'text-ink-2',
+                      )}
+                    >
+                      {pt.orders}
+                    </span>
+                    <div
+                      className={cx(
+                        'w-full max-w-[42px] rounded-t-xl transition-all duration-300 shadow-md group-hover:brightness-110',
+                        isSel
+                          ? 'bg-gradient-to-t from-blue-600 via-sky-500 to-cyan-400 ring-2 ring-blue-500/50'
+                          : pt.shortBy > 0
+                          ? 'bg-gradient-to-t from-amber-600 to-amber-400'
+                          : 'bg-gradient-to-t from-slate-400 to-slate-300 dark:from-slate-700 dark:to-slate-600',
+                      )}
+                      style={{ height: `${heightPercent}%` }}
+                    />
+                    <span className={cx('text-[10.5px] font-medium mt-2 truncate max-w-full text-center', isSel ? 'text-[var(--accent)] font-semibold' : 'text-ink-3')}>
+                      {pt.label}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex flex-wrap items-center gap-4 mt-3 text-[11px] text-ink-2">
+              <span className="flex items-center gap-1.5"><i className="w-3 h-2.5 rounded-sm inline-block bg-gradient-to-t from-blue-600 to-cyan-400" />Selected date</span>
+              <span className="flex items-center gap-1.5"><i className="w-3 h-2.5 rounded-sm inline-block bg-gradient-to-t from-amber-600 to-amber-400" />A shift is short that day</span>
+              <span className="flex items-center gap-1.5"><i className="w-3 h-2.5 rounded-sm inline-block bg-slate-400" />Work orders (number on top)</span>
+            </div>
+              </>
+            ) : (
+              <>
+                <div className="h-56 w-full flex items-end gap-1.5 sm:gap-2.5 px-3 sm:px-5 pt-8 pb-3 rounded-lg bg-[var(--surface-2)] border border-[var(--line)] overflow-x-auto">
+                  {chartPoints.map((pt) => {
+                    const isSel = pt.day === selectedDay;
+                    return (
+                      <button
+                        key={pt.day}
+                        type="button"
+                        onClick={() => setSelectedDay(pt.day)}
+                        onMouseEnter={() => setHoverDay(pt.day)}
+                        onMouseLeave={() => setHoverDay(null)}
+                        className="flex-1 min-w-[26px] h-full flex flex-col items-center justify-end group relative cursor-pointer"
+                      >
+                        <span className={cx('text-[11px] font-semibold tabular-nums mb-1', isSel ? 'text-[var(--accent)]' : 'text-ink-2')}>
+                          {pt.demand}
+                        </span>
+                        <div className="relative w-full flex-1 flex items-end justify-center min-h-0">
+                          <div
+                            className={cx('w-full max-w-[36px] rounded-t-md transition-all', isSel && 'ring-2 ring-[var(--accent)]')}
+                            style={{
+                              height: `${(pt.demand / chartMax) * 100}%`,
+                              minHeight: pt.demand ? 3 : 0,
+                              background: pt.shortBy > 0 ? 'var(--danger)' : isSel ? 'var(--accent)' : 'var(--ink-3)',
+                              opacity: pt.shortBy > 0 || isSel ? 1 : 0.55,
+                            }}
+                          />
+                          <div
+                            className="absolute left-1/2 -translate-x-1/2 w-full max-w-[44px] h-0.5 pointer-events-none"
+                            style={{ bottom: `${(pt.capacity / chartMax) * 100}%`, background: 'var(--ok)' }}
+                          />
+                        </div>
+                        <span className={cx('text-[10.5px] font-medium mt-1.5 truncate max-w-full', isSel ? 'text-[var(--accent)] font-semibold' : 'text-ink-3')}>
+                          {pt.label}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="flex flex-wrap items-center gap-4 mt-3 text-[11px] text-ink-2">
+                  <span className="flex items-center gap-1.5"><i className="w-3 h-2.5 rounded-sm inline-block bg-[var(--ink-3)] opacity-60" />People needed</span>
+                  <span className="flex items-center gap-1.5"><i className="w-3 h-2.5 rounded-sm inline-block bg-[var(--danger)]" />A shift is short</span>
+                  <span className="flex items-center gap-1.5"><i className="w-4 h-0.5 inline-block bg-[var(--ok)]" />People available</span>
+                </div>
+              </>
+            )}
           </div>
 
-          <div className="pt-3 border-t border-[var(--line)] flex items-center justify-between text-xs text-ink-3">
-            <span>Hover slices for glowing telemetry focus</span>
-            <span className="font-bold text-ink">Maximo SLV PM Pack</span>
+          <div className="flex items-center justify-between pt-4 border-t border-[var(--line)] text-[12px] text-ink-3 mt-4">
+            <span>Point at a bar for details · click to pick the date</span>
+            <Button size="sm" variant="outline" onClick={onOpenWorkOrders}>Open Maintenance Workorders →</Button>
           </div>
-        </div>
+        </section>
+
+        {/* Allocation distribution */}
+        <section className="lg:col-span-5 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5 flex flex-col">
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+            <div>
+              <h2 className="text-[15px] font-semibold text-ink">Resource Allocation Distribution</h2>
+              <p className="text-[12px] text-ink-2 mt-0.5">{MONTHS[month - 1]} work orders {pie.title}</p>
+            </div>
+            <Segmented
+              value={chartMode}
+              onChange={(m) => {
+                setChartMode(m);
+                setActiveSlice(null);
+              }}
+              options={[
+                { value: 'type', label: 'Type' },
+                { value: 'shift', label: 'Shift' },
+                { value: 'line', label: 'Line' },
+                { value: 'status', label: 'Staffing' },
+              ]}
+            />
+          </div>
+
+          {pie.total === 0 ? (
+            <div className="flex-1 grid place-items-center py-10 text-center text-[13px] text-ink-3">
+              No work orders placed in this month.
+            </div>
+          ) : (
+            <div className="flex-1 flex flex-col justify-center gap-6 py-5">
+              <div className="relative mx-auto w-full max-w-[280px] aspect-square">
+                <svg viewBox="0 0 210 210" className="w-full h-full">
+                  {pie.arcs.map(
+                    (arc) =>
+                      arc.d && (
+                        <path
+                          key={arc.key}
+                          d={arc.d}
+                          fill={arc.color}
+                          className="transition-all duration-200 cursor-pointer"
+                          style={{
+                            transformOrigin: '105px 105px',
+                            transform: activeSlice === arc.index ? 'scale(1.04)' : 'scale(1)',
+                            opacity: activeSlice !== null && activeSlice !== arc.index ? 0.5 : 1,
+                          }}
+                          onMouseEnter={() => setActiveSlice(arc.index)}
+                          onMouseLeave={() => setActiveSlice(null)}
+                        />
+                      ),
+                  )}
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
+                  <span className="text-[44px] font-semibold text-ink tabular-nums leading-none">{sel ? sel.count : pie.total}</span>
+                  <span className="text-[12px] font-medium text-ink-2 mt-1.5 max-w-[120px] truncate">
+                    {sel ? `${sel.label} · ${sel.percent}%` : 'work orders'}
+                  </span>
+                  <span className="text-[11px] text-ink-3 mt-0.5">
+                    {sel ? `${sel.crew} crew needed` : `${pie.totalCrew} crew needed`}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                {pie.arcs.map((arc) => (
+                  <div
+                    key={arc.key}
+                    onMouseEnter={() => setActiveSlice(arc.count ? arc.index : null)}
+                    onMouseLeave={() => setActiveSlice(null)}
+                    className={cx(
+                      'px-3 py-2.5 rounded-lg border transition-colors',
+                      arc.count ? 'cursor-pointer' : 'opacity-60',
+                      activeSlice === arc.index ? 'bg-[var(--surface-3)] border-[var(--accent)]' : 'bg-[var(--surface-2)] border-[var(--line)]',
+                    )}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: arc.color }} />
+                        <div className="min-w-0">
+                          <span className="text-[13px] font-medium text-ink block truncate">{arc.label}</span>
+                          <span className="text-[11px] text-ink-3 block truncate">{arc.hint}</span>
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0 tabular-nums">
+                        <span className="text-[13px] text-ink-2">
+                          <strong className="text-ink font-semibold">{arc.count}</strong> · {arc.percent}%
+                        </span>
+                        <span className="text-[11px] text-ink-3 block">{arc.crew} crew</span>
+                      </div>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-[var(--surface-3)] mt-2 overflow-hidden">
+                      <div className="h-full rounded-full" style={{ width: `${arc.share * 100}%`, background: arc.color }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="pt-3 border-t border-[var(--line)] flex items-center justify-between text-[12px] text-ink-3">
+            <span>Follows the line filter at the top</span>
+            <span className="text-ink-2 font-medium tabular-nums">{pie.total} orders · {pie.totalCrew} crew shifts</span>
+          </div>
+        </section>
       </div>
 
-      {/* =====================================================================
-          ROW 3: OPERATIONAL SHIFT GANG BOARD (LINE 4/6 & LINE 5 GANGS)
-          ===================================================================== */}
-      <div className="rounded-3xl border border-[var(--line-strong)] bg-[var(--surface)] p-6 shadow-sm">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
+      {/* ===== Shift deployment for the planning date ===== */}
+      <section className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
           <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg font-black text-ink">
-                Daily Shift Gang Deployment &amp; Handover Matrix
-              </h2>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                Active Gangs
-              </span>
-            </div>
-            <p className="text-xs text-ink-3 font-medium">
-              Operational day {selectedDay} Oct {settings.activeYear} · 24-Hour Round-the-Clock Railway Protection
-            </p>
+            <h2 className="text-[15px] font-semibold text-ink">Shifts on {dateLabel(selectedDay)}</h2>
+            <p className="text-[12px] text-ink-2 mt-0.5">People on each shift against the crew its work orders need</p>
           </div>
-
-          <button
-            type="button"
-            onClick={onOpenPlanner}
-            className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-[var(--accent)] hover:opacity-90 active:scale-95 transition-all shadow-md flex items-center gap-2 self-start sm:self-auto"
-          >
-            <span>Launch Planner Matrix</span>
-            <span>→</span>
-          </button>
+          <Button variant="primary" onClick={onOpenPlanner} className="self-start sm:self-auto">
+            Open Duty Roster →
+          </Button>
         </div>
 
-        {/* 2 Big Line Deployment Panels */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {/* Panel 1: Line 4 & 6 Combined Pool */}
-          <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface-2)] p-4 sm:p-5 flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between pb-3 border-b border-[var(--line)]">
-                <div>
-                  <span className="text-sm font-black text-ink uppercase tracking-wide block">
-                    Line 4 &amp; 6 Combined Pool
-                  </span>
-                  <span className="text-xs text-ink-3">Shared Depot 4/6 · 59.6 km Mainline</span>
+        <div className={cx('grid grid-cols-1 gap-4', pools.length > 1 && 'md:grid-cols-2')}>
+          {pools.map((pool) => {
+            const row = grid[selectedDay - 1][pool];
+            const total = SHIFT_FAMILIES.reduce((s, sh) => s + row[sh].onDuty, 0);
+            return (
+              <div key={pool} className="rounded-lg border border-[var(--line)] bg-[var(--surface-2)] p-4">
+                <div className="flex items-center justify-between pb-3 border-b border-[var(--line)]">
+                  <span className="text-[13px] font-semibold text-ink">{POOL_TITLE[pool]}</span>
+                  <span className="text-[12px] text-ink-2 tabular-nums">{total} working · {peopleByPool[pool]} on roster</span>
                 </div>
-                <span className="px-3 py-1 rounded-xl text-xs font-black bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 font-mono">
-                  {shiftDeployment.l46.total} Techs on Duty
-                </span>
-              </div>
 
-              {/* 4 Shifts Display */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 my-4">
-                <div className="p-3 rounded-xl bg-[var(--surface)] border border-[var(--line)] text-center">
-                  <span className="text-[10px] font-bold text-ink-3 uppercase block">Morning (M)</span>
-                  <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono my-1 block">
-                    {shiftDeployment.l46.m}
-                  </span>
-                  <span className="text-[10px] font-semibold text-ink-3">06:00–15:00</span>
-                </div>
-                <div className="p-3 rounded-xl bg-[var(--surface)] border border-[var(--line)] text-center">
-                  <span className="text-[10px] font-bold text-ink-3 uppercase block">Evening (E)</span>
-                  <span className="text-2xl font-black text-blue-600 dark:text-blue-400 font-mono my-1 block">
-                    {shiftDeployment.l46.e}
-                  </span>
-                  <span className="text-[10px] font-semibold text-ink-3">14:00–23:00</span>
-                </div>
-                <div className="p-3 rounded-xl bg-[var(--surface)] border border-[var(--line)] text-center">
-                  <span className="text-[10px] font-bold text-ink-3 uppercase block">Night (N)</span>
-                  <span className="text-2xl font-black text-indigo-600 dark:text-indigo-400 font-mono my-1 block">
-                    {shiftDeployment.l46.n}
-                  </span>
-                  <span className="text-[10px] font-semibold text-indigo-500 font-bold">Possession</span>
-                </div>
-                <div className="p-3 rounded-xl bg-[var(--surface)] border border-[var(--line)] text-center">
-                  <span className="text-[10px] font-bold text-ink-3 uppercase block">General (GS)</span>
-                  <span className="text-2xl font-black text-amber-600 dark:text-amber-400 font-mono my-1 block">
-                    {shiftDeployment.l46.gs}
-                  </span>
-                  <span className="text-[10px] font-semibold text-ink-3">Workshop</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="pt-3 border-t border-[var(--line)] flex items-center justify-between text-xs text-ink-3">
-              <span>Safety Minimum: M≥7, E≥6, N≥10</span>
-              <strong className="text-emerald-600 dark:text-emerald-400">Target Satisfied</strong>
-            </div>
-          </div>
-
-          {/* Panel 2: Line 5 Solo Pool */}
-          <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface-2)] p-4 sm:p-5 flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between pb-3 border-b border-[var(--line)]">
-                <div>
-                  <span className="text-sm font-black text-ink uppercase tracking-wide block">
-                    Line 5 Solo Pool (Yellow Line)
-                  </span>
-                  <span className="text-xs text-ink-3">Dedicated Depot 5 · Underground Wayside</span>
-                </div>
-                <span className="px-3 py-1 rounded-xl text-xs font-black bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 font-mono">
-                  {shiftDeployment.l5.total} Techs on Duty
-                </span>
-              </div>
-
-              {/* 4 Shifts Display */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 my-4">
-                <div className="p-3 rounded-xl bg-[var(--surface)] border border-[var(--line)] text-center">
-                  <span className="text-[10px] font-bold text-ink-3 uppercase block">Morning (M)</span>
-                  <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono my-1 block">
-                    {shiftDeployment.l5.m}
-                  </span>
-                  <span className="text-[10px] font-semibold text-ink-3">06:00–15:00</span>
-                </div>
-                <div className="p-3 rounded-xl bg-[var(--surface)] border border-[var(--line)] text-center">
-                  <span className="text-[10px] font-bold text-ink-3 uppercase block">Evening (E)</span>
-                  <span className="text-2xl font-black text-blue-600 dark:text-blue-400 font-mono my-1 block">
-                    {shiftDeployment.l5.e}
-                  </span>
-                  <span className="text-[10px] font-semibold text-ink-3">14:00–23:00</span>
-                </div>
-                <div className="p-3 rounded-xl bg-[var(--surface)] border border-[var(--line)] text-center">
-                  <span className="text-[10px] font-bold text-ink-3 uppercase block">Night (N)</span>
-                  <span className="text-2xl font-black text-indigo-600 dark:text-indigo-400 font-mono my-1 block">
-                    {shiftDeployment.l5.n}
-                  </span>
-                  <span className="text-[10px] font-semibold text-indigo-500 font-bold">Possession</span>
-                </div>
-                <div className="p-3 rounded-xl bg-[var(--surface)] border border-[var(--line)] text-center">
-                  <span className="text-[10px] font-bold text-ink-3 uppercase block">General (GS)</span>
-                  <span className="text-2xl font-black text-amber-600 dark:text-amber-400 font-mono my-1 block">
-                    {shiftDeployment.l5.gs}
-                  </span>
-                  <span className="text-[10px] font-semibold text-ink-3">Workshop</span>
+                <div className="space-y-2.5 mt-3">
+                  {SHIFT_FAMILIES.map((shift) => {
+                    const c = row[shift];
+                    const min = shiftMinimum(pool, shift);
+                    const buffer = c.onDuty - c.demand;
+                    const belowMin = c.onDuty < min;
+                    const fill = c.onDuty ? Math.min(100, (c.demand / c.onDuty) * 100) : c.demand ? 100 : 0;
+                    const tone: Tone = buffer < 0 ? 'bad' : belowMin ? 'warn' : c.demand ? 'good' : 'neutral';
+                    return (
+                      <div key={shift} className="rounded-lg bg-[var(--surface)] border border-[var(--line)] p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="w-2.5 h-2.5 rounded-full" style={{ background: SHIFT_COLOR[shift] }} />
+                            <span className="text-[13px] font-semibold text-ink">{SHIFT_LABEL[shift]}</span>
+                            <span className="text-[11px] text-ink-3">{SHIFT_TIMING[shift]}</span>
+                          </div>
+                          <span className={cx('px-2 py-0.5 rounded-full text-[11px] font-semibold', BADGE_STYLE[tone])}>
+                            {buffer < 0 ? `Short by ${-buffer}` : belowMin ? `Below minimum (${min})` : c.demand ? `${buffer} spare` : 'No work'}
+                          </span>
+                        </div>
+                        <div className="flex items-baseline gap-5 mt-2 text-[12px] text-ink-2">
+                          <span><strong className="text-[18px] font-semibold text-ink tabular-nums">{c.onDuty}</strong> working</span>
+                          <span><strong className="text-[18px] font-semibold text-ink tabular-nums">{c.demand}</strong> needed</span>
+                          <span><strong className="text-[18px] font-semibold text-ink tabular-nums">{c.orders}</strong> orders</span>
+                        </div>
+                        <div className="h-1.5 rounded-full bg-[var(--surface-3)] mt-2.5 overflow-hidden">
+                          <div
+                            className="h-full rounded-full"
+                            style={{ width: `${fill}%`, background: buffer < 0 ? 'var(--danger)' : 'var(--ok)' }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
-            </div>
-
-            <div className="pt-3 border-t border-[var(--line)] flex items-center justify-between text-xs text-ink-3">
-              <span>Safety Minimum: M≥4, E≥3, N≥5</span>
-              <strong className="text-emerald-600 dark:text-emerald-400">Target Satisfied</strong>
-            </div>
-          </div>
+            );
+          })}
         </div>
-      </div>
+      </section>
+
+      {/* ===== Attention list ===== */}
+      <section className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
+        <div className="flex items-start justify-between gap-3 mb-3">
+          <div>
+            <h2 className="text-[15px] font-semibold text-ink">Needs attention</h2>
+            <p className="text-[12px] text-ink-2 mt-0.5">Shifts in {MONTHS[month - 1]} where work orders need more people than the roster has</p>
+          </div>
+          <span className={cx('px-2.5 py-1 rounded-full text-[11px] font-semibold shrink-0', BADGE_STYLE[shortfalls.length ? 'bad' : 'good'])}>
+            {shortfalls.length ? `${shortfalls.length} to fix` : 'All clear'}
+          </span>
+        </div>
+
+        {shortfalls.length === 0 ? (
+          <p className="text-[13px] text-ink-2">Every shift with work orders has enough people on the roster.</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
+            {shortfalls.slice(0, 12).map((s) => (
+              <button
+                key={`${s.day}-${s.pool}-${s.shift}`}
+                type="button"
+                onClick={() => setSelectedDay(s.day)}
+                className="text-left px-3 py-2.5 rounded-lg border border-[var(--line)] bg-[var(--surface-2)] hover:border-[var(--danger)] transition-colors flex items-center justify-between gap-3"
+              >
+                <div className="min-w-0">
+                  <span className="text-[13px] font-semibold text-ink block">{dateLabel(s.day)} · {SHIFT_LABEL[s.shift]}</span>
+                  <span className="text-[11px] text-ink-3 block truncate">{POOL_LINES[s.pool].label}</span>
+                </div>
+                <span className="text-[12px] font-semibold tabular-nums text-[var(--danger)] shrink-0">
+                  need {s.need}, have {s.have}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+        {shortfalls.length > 12 && (
+          <p className="text-[12px] text-ink-3 mt-3">Showing the first 12 of {shortfalls.length}. Open Maintenance Workorders for the full list.</p>
+        )}
+        {unplaced > 0 && (
+          <p className="text-[12px] text-[var(--warn)] font-medium mt-3">
+            {unplaced} work order{unplaced === 1 ? ' has' : 's have'} no usable Scheduled Start or Line, so {unplaced === 1 ? 'it is' : 'they are'} left out of these numbers. Fix the Excel file and import again.
+          </p>
+        )}
+      </section>
+    </div>
+  );
+}
+
+type Tone = 'good' | 'bad' | 'warn' | 'neutral';
+
+const mix = (v: string) => `bg-[color-mix(in_srgb,var(${v})_14%,transparent)] text-[var(${v})]`;
+const BADGE_STYLE: Record<Tone, string> = {
+  good: mix('--ok'),
+  bad: mix('--danger'),
+  warn: mix('--warn'),
+  neutral: 'bg-[var(--surface-3)] text-ink-2',
+};
+const STATUS_STYLE: Record<Tone, string> = {
+  good: `${mix('--ok')} border-[color-mix(in_srgb,var(--ok)_35%,transparent)]`,
+  bad: `${mix('--danger')} border-[color-mix(in_srgb,var(--danger)_35%,transparent)]`,
+  warn: `${mix('--warn')} border-[color-mix(in_srgb,var(--warn)_35%,transparent)]`,
+  neutral: 'bg-[var(--surface)] text-ink-2 border-[var(--line)]',
+};
+
+function Stat({ label, value, tone }: { label: string; value: string; tone?: Tone }) {
+  return (
+    <div
+      className={cx(
+        'p-3 rounded-lg border',
+        tone ? `${STATUS_STYLE[tone]}` : 'bg-[var(--surface-2)] border-[var(--line)]',
+      )}
+    >
+      <span className="text-[11px] font-medium text-ink-2 block">{label}</span>
+      <span className={cx('text-[17px] font-semibold tabular-nums', !tone && 'text-ink')}>{value}</span>
+    </div>
+  );
+}
+
+function Kpi({ label, value, note, tone }: { label: string; value: number; note: string; tone?: Tone }) {
+  return (
+    <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4">
+      <span className="text-[12px] font-medium text-ink-2 block truncate">{label}</span>
+      <span
+        className={cx(
+          'mt-2 block text-[32px] leading-none font-semibold tabular-nums',
+          tone === 'bad' ? 'text-[var(--danger)]' : tone === 'good' ? 'text-[var(--ok)]' : 'text-ink',
+        )}
+      >
+        {value}
+      </span>
+      <span className="mt-2 block text-[12px] text-ink-3">{note}</span>
     </div>
   );
 }

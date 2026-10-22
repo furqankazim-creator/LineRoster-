@@ -26,7 +26,7 @@ export function buildWorkOrderContext(input: {
 
   out.push(`WORK ORDERS (live, ${workOrders.length} loaded). Open sheet: ${settings.activeLineId}, ${monthPrefix.slice(0, 7)}. Staff pool of the open line: ${POOL_LINES[pool].label}.`);
   if (!workOrders.length) {
-    out.push('No work orders are loaded. They come from Work Orders → Import Excel (.xlsx).');
+    out.push('No work orders are loaded. They come from Maintenance Workorders → Import Excel (.xlsx).');
     return out.join('\n');
   }
 
@@ -42,7 +42,7 @@ export function buildWorkOrderContext(input: {
   const deficits = workload.balances
     .filter((b) => b.buffer < 0)
     .sort((a, b) => Number(!(a.pool === pool && a.date.startsWith(monthPrefix))) - Number(!(b.pool === pool && b.date.startsWith(monthPrefix))) || a.date.localeCompare(b.date));
-  out.push(`Shift deficits (${deficits.length}) — pool | date | shift | on shift in Planner | crew needed | buffer | work order numbers:`);
+  out.push(`Shift deficits (${deficits.length}) — pool | date | shift | on shift in Duty Roster | crew needed | buffer | work order numbers:`);
   for (const b of deficits.slice(0, 30)) {
     const ids = Object.values(workload.byWo)
       .filter((a) => POOL_LINES[b.pool].codes.includes(a.lineCode) && a.date === b.date && a.shift === b.shift && a.status !== 'OK')
@@ -87,16 +87,16 @@ export function buildWorkOrderContext(input: {
 /** Built-in answers for when the AI server can't be reached. */
 export const QUICK_HELP: { q: string; a: string }[] = [
   {
-    q: 'How do Planner edits change Work Orders?',
-    a: 'Every work order is checked against the Planner roster of its own line, on its Scheduled Start date and shift. Available = people on that shift family that day (M, ML, MT count as Morning; GS, leave and rest do not). Demand = crew of that day\'s work orders on that shift. Buffer = Available − Demand. Paint a cell in the Planner and the Work Orders cards, statuses and deficit alerts update immediately — no button.',
+    q: 'How do Duty Roster edits change Maintenance Workorders?',
+    a: 'Every work order is checked against the Duty Roster of its own line, on its Scheduled Start date and shift. Available = people on that shift family that day (M, ML, MT count as Morning; GS, leave and rest do not). Demand = crew of that day\'s work orders on that shift. Buffer = Available − Demand. Paint a cell in the Duty Roster and the Work Orders cards, statuses and deficit alerts update immediately — no button.',
   },
   {
     q: 'How do I clear a staff deficit?',
-    a: 'Planner → Insights → Issues shows each work-order shortfall ("Day 16 · Morning: need 3, only 2 on Morning"). Click "Show who can cover →" and "Assign" a free person, or paint someone onto that shift yourself. You can also lower "Required People" on the work order. From Work Orders, "Fix in Planner →" on an alert opens the right line and month.',
+    a: 'Duty Roster → Insights → Issues shows each work-order shortfall ("Day 16 · Morning: need 3, only 2 on Morning"). Click "Show who can cover →" and "Assign" a free person, or paint someone onto that shift yourself. You can also lower "Required People" on the work order. From Work Orders, "Fix in Duty Roster →" on an alert opens the right line and month.',
   },
   {
     q: 'Why does Line 4&6 say "No roster"?',
-    a: 'Line 4 and Line 6 are one shared team (Line 4&6), but no people are set up for them yet. Choose Line 4 in the Planner, open People and "Add person" for each team member (default shift + rest days). Line 6 work orders use the same people.',
+    a: 'Line 4 and Line 6 are one shared team (Line 4&6), but no people are set up for them yet. Choose Line 4 in the Duty Roster, open People and "Add person" for each team member (default shift + rest days). Line 6 work orders use the same people.',
   },
   {
     q: 'Which Excel columns are read?',

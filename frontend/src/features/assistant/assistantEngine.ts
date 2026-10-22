@@ -126,7 +126,7 @@ export function generateAssistantReply(input: AssistantInput): AiReply {
         '',
         ...deficitItems.slice(0, 10),
         '',
-        `💡 *To fix these:* Ask me *"Who can cover on the short days?"* or click on any highlighted red deficit cell in the Planner to assign available staff.`,
+        `💡 *To fix these:* Ask me *"Who can cover on the short days?"* or click on any highlighted red deficit cell in the Duty Roster to assign available staff.`,
       ].join('\n');
 
       return { answer, actions: [], preview: null };
@@ -229,7 +229,7 @@ export function generateAssistantReply(input: AssistantInput): AiReply {
     }
 
     return {
-      answer: `All staff are currently assigned or on scheduled leave on those days. You can also adjust the required crew count on the Work Orders page.`,
+      answer: `All staff are currently assigned or on scheduled leave on those days. You can also adjust the required crew count on the Maintenance Workorders page.`,
       actions: [],
       preview: null,
     };
@@ -250,8 +250,8 @@ export function generateAssistantReply(input: AssistantInput): AiReply {
         }),
         '',
         `**How to fix them:**`,
-        `1. Open **Planner**, navigate to the indicated date, and assign a technician to the shift.`,
-        `2. Or open **Work Orders**, click **"Manage Crew"** on the work order, and hand-select available staff.`,
+        `1. Open **Duty Roster**, navigate to the indicated date, and assign a technician to the shift.`,
+        `2. Or open **Maintenance Workorders**, click **"Manage Crew"** on the work order, and hand-select available staff.`,
         `3. If staffing is tight, decrease the **"Required People"** using the **−** button on the row.`,
       ];
       return { answer: lines.join('\n'), actions: [], preview: null };
@@ -274,7 +274,7 @@ export function generateAssistantReply(input: AssistantInput): AiReply {
         '',
         ...problemWos.slice(0, 4).map((w) => `• **WO #${w.workOrderId}**: ${(w.importWarnings || []).join(', ')}`),
         '',
-        `Check **Work Orders → Import report** for complete row-by-row details. Missing dates or line numbers were automatically estimated.`,
+        `Check **Maintenance Workorders → Import report** for complete row-by-row details. Missing dates or line numbers were automatically estimated.`,
       ];
       return { answer: lines.join('\n'), actions: [], preview: null };
     } else {
@@ -363,7 +363,7 @@ export function generateAssistantReply(input: AssistantInput): AiReply {
       '',
       `• **Roster Verification**: Ask *"Which days are short-staffed?"* to detect rule or headcount shortfalls.`,
       `• **Smart Coverage**: Ask *"Who can cover Night on the short days?"* to preview and apply instant shift fixes.`,
-      `• **Work Orders**: Ask *"Which work orders are short this month?"* to inspect live demand vs on-duty crew.`,
+      `• **Maintenance Workorders**: Ask *"Which work orders are short this month?"* to inspect live demand vs on-duty crew.`,
       `• **Fairness Audit**: Ask *"Who has worked the most nights?"* to check rotation balances.`,
     ].join('\n'),
     actions: [],

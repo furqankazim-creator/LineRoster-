@@ -127,7 +127,7 @@ export function PeoplePage() {
             <div className="bg-[var(--surface)] px-4 py-10 text-center">
               <p className="text-[13px] font-medium">Nobody on this line yet</p>
               <p className="mt-1 text-[12px] text-ink-3">
-                Add people one by one, or import an existing Excel roster from the Planner.
+                Add people one by one, or import an existing Excel roster from the Duty Roster.
               </p>
             </div>
           )}

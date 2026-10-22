@@ -37,7 +37,7 @@ export function CellPicker({
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const { codes } = useStore();
+  const { lineCodes: codes } = useStore();
   const [draft, setDraft] = useState(extra ? String(extra) : '');
   useEffect(() => setDraft(extra ? String(extra) : ''), [extra]);
 

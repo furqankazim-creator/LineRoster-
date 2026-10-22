@@ -187,7 +187,7 @@ function IssuesTab({ onJump }: { onJump: (e: string | undefined, d: number | und
                   >
                     {isWo && (
                       <span className="mb-1 inline-flex items-center gap-1 rounded bg-[var(--sh-leave-bg)] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[var(--danger)]">
-                        {issue.rule === 'work-order-data' ? 'Work Orders · data' : 'Work Orders'}
+                        {issue.rule === 'work-order-data' ? 'Maintenance Workorders · data' : 'Maintenance Workorders'}
                       </span>
                     )}
                     <p className="text-[12.5px] leading-snug">{issue.message}</p>

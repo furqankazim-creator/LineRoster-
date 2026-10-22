@@ -1255,7 +1255,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           id: 'wo-elsewhere',
           severity: 'warning' as const,
           rule: 'work-order-short' as const,
-          message: `${elsewhere} more work order${elsewhere === 1 ? ' is' : 's are'} short on other lines or months — see Work Orders.`,
+          message: `${elsewhere} more work order${elsewhere === 1 ? ' is' : 's are'} short on other lines or months — see Maintenance Workorders.`,
         }]
       : [];
 
@@ -1266,7 +1266,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           id: 'wo-unplaced',
           severity: 'warning' as const,
           rule: 'work-order-data' as const,
-          message: `${unplaced} imported work order${unplaced === 1 ? '' : 's'} could not be placed on a day (no valid Scheduled Start or Line) — see Work Orders → Import report.`,
+          message: `${unplaced} imported work order${unplaced === 1 ? '' : 's'} could not be placed on a day (no valid Scheduled Start or Line) — see Maintenance Workorders → Import report.`,
         }]
       : [];
 

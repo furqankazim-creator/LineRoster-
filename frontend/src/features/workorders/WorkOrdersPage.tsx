@@ -589,7 +589,7 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
             <div>
               <div className="flex items-center gap-3 flex-wrap">
                 <h1 className="text-xl sm:text-2xl lg:text-[25px] font-black tracking-tight text-ink">
-                  Work Orders &amp; Manpower Allocation
+                  Maintenance Workorders &amp; Manpower Allocation
                 </h1>
                 {workOrders.length > 0 && (
                   <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[12.5px] font-bold tracking-wide uppercase bg-[var(--accent)]/15 text-[var(--accent)] border border-[var(--accent)]/30">
@@ -608,7 +608,7 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
                 ) : null}
               </div>
               <p className="text-[13.5px] text-ink-2 mt-1">
-                Live from the Planner: each work order is checked against its own line&apos;s roster for its date and shift. Edit the roster and these numbers update by themselves.
+                Live from the Duty Roster: each work order is checked against its own line&apos;s roster for its date and shift. Edit the roster and these numbers update by themselves.
               </p>
             </div>
           </div>
@@ -664,10 +664,10 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
             {workOrders.length > 0 && (
             <span
               className="h-10 px-3.5 whitespace-nowrap shrink-0 rounded-xl text-[13px] font-bold border border-emerald-500/35 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 inline-flex items-center gap-2"
-              title="Allocation is recalculated automatically whenever the Planner roster, people, shift codes or work orders change."
+              title="Allocation is recalculated automatically whenever the Duty Roster, people, shift codes or work orders change."
             >
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              Live sync with Planner
+              Live sync with Duty Roster
             </span>
             )}
 
@@ -1258,7 +1258,7 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
               Shift Manpower Capacity &amp; Net Resource Buffer
             </h2>
             <span className="text-[13px] text-ink-3">
-              Buffer = people on that shift in the Planner − crew needed by that day&apos;s work orders
+              Buffer = people on that shift in the Duty Roster − crew needed by that day&apos;s work orders
             </span>
           </div>
 
@@ -1466,7 +1466,7 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
                     {groupConflicts.length} work order{groupConflicts.length === 1 ? '' : 's'} not fully staffed · {GROUP_LABEL[selectedLine]}
                   </h3>
                   <p className="text-[13.5px] text-ink-2 mt-0.5">
-                    Fix it in the Planner: put more people on that shift on that day (or move the work order&apos;s shift). This list clears itself as you edit.
+                    Fix it in the Duty Roster: put more people on that shift on that day (or move the work order&apos;s shift). This list clears itself as you edit.
                   </p>
                 </div>
               </div>
@@ -1525,10 +1525,10 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
                               await openSheet(c.lineId, c.year, c.month);
                               onOpenPlanner();
                             }}
-                            title="Open this line & month in the Planner — the shortfall is listed under Insights → Issues with who can cover"
+                            title="Open this line & month in the Duty Roster — the shortfall is listed under Insights → Issues with who can cover"
                             className="font-sans font-bold text-red-400 hover:underline"
                           >
-                            Fix in Planner →
+                            Fix in Duty Roster →
                           </button>
                         )}
                       </div>
@@ -1966,7 +1966,7 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
 
                       {/* 5. Scheduled Date (Clean formatted dates) */}
                       <td className="py-4 px-5 font-mono text-[12px] text-ink-2 whitespace-nowrap">
-                        <div className="flex items-center gap-1.5" title="Scheduled Start — the day this is placed on the Planner">
+                        <div className="flex items-center gap-1.5" title="Scheduled Start — the day this is placed on the Duty Roster">
                           <Icons.Calendar />
                           <span className="font-semibold text-ink">
                             {wo.scheduledStart ? formatDisplayDate(wo.scheduledStart) : 'No Scheduled Start'}
@@ -1998,7 +1998,7 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
                         })()}
                         {live && live.status !== 'UNPLACED' && (
                           <div className="mt-1 text-[11.5px] font-sans font-semibold text-ink-3">
-                            {SHIFT_LABEL[live.shift]} · {live.onShift} on shift in Planner
+                            {SHIFT_LABEL[live.shift]} · {live.onShift} on shift in Duty Roster
                           </div>
                         )}
                       </td>
@@ -2421,7 +2421,7 @@ function CrewAssignmentModal({
           <div className="flex items-center justify-between mb-2.5">
             <span className="text-[13px] font-bold text-ink flex items-center gap-2">
               <span>
-                On {SHIFT_LABEL[shift]} that day in the Planner: {onShift.length}
+                On {SHIFT_LABEL[shift]} that day in the Duty Roster: {onShift.length}
               </span>
               <span className="font-mono text-[12px] text-[var(--accent)] font-bold">
                 ({assignedIds.size} of {draft.resourceRequired} selected)
@@ -2452,7 +2452,7 @@ function CrewAssignmentModal({
                   type="button"
                   onClick={() => toggleEmployee(emp)}
                   disabled={!available}
-                  title={available ? '' : `Not on ${SHIFT_LABEL[shift]} on this day in the Planner`}
+                  title={available ? '' : `Not on ${SHIFT_LABEL[shift]} on this day in the Duty Roster`}
                   className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
                     isSelected
                       ? 'bg-[var(--accent)]/20 border-[var(--accent)] text-ink shadow-sm'
@@ -2560,7 +2560,7 @@ function YellowColumnsModal({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[12.5px] text-ink-2 leading-relaxed">
           <div className="p-3.5 rounded-xl bg-[var(--surface-2)] border border-[var(--line)]">
             <h5 className="font-bold text-ink mb-1">How the dates are used</h5>
-            <strong>Scheduled Start</strong> places the work on the Planner and counts in shift demand.{' '}
+            <strong>Scheduled Start</strong> places the work on the Duty Roster and counts in shift demand.{' '}
             <strong>Start No Earlier Than → Finish No Later Than</strong> is the allowed window (outside it = flagged; FNLT before today = &quot;past FNLT&quot;).{' '}
             <strong>Target Start</strong> and <strong>Reported Date</strong> are reference only (target slip, age).
           </div>
@@ -2608,7 +2608,7 @@ function EmptyImport({
   const steps = [
     { n: 1, title: 'Import your Excel', text: 'Drop the monthly work-order sheet here, or click to choose it.' },
     { n: 2, title: 'Yellow columns are read', text: `Only the ${columns.length} yellow columns, matched by header name. Problems are listed row by row.` },
-    { n: 3, title: 'Live staffing check', text: 'Every work order is matched to the Planner roster for its day and shift — deficits update as you edit.' },
+    { n: 3, title: 'Live staffing check', text: 'Every work order is matched to the Duty Roster for its day and shift — deficits update as you edit.' },
   ];
 
   return (
@@ -2657,7 +2657,7 @@ function EmptyImport({
               </h2>
               <p className="mt-2 text-[14px] text-ink-2 max-w-lg mx-auto leading-relaxed">
                 {importing
-                  ? 'Checking the yellow columns and matching every work order to the Planner roster.'
+                  ? 'Checking the yellow columns and matching every work order to the Duty Roster.'
                   : 'Drag and drop your Excel file here, or click to choose it. Nothing is shown until you import — your data stays in this browser.'}
               </p>
             </div>
