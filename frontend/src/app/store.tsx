@@ -74,6 +74,7 @@ interface RosterStore {
   /** Adds a code to this month's brush without touching any other month. */
   enableCode(codeId: string): Promise<void>;
   employees: Employee[];
+  allEmployees: Employee[];
   leave: LeaveBlock[];
   roster: RosterMonth | null;
   columns: ReturnType<typeof buildColumns>;
@@ -1338,6 +1339,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     lineCodes,
     enableCode,
     employees,
+    allEmployees,
     leave: lineLeave,
     roster,
     columns,

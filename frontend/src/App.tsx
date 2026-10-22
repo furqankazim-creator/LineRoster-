@@ -16,10 +16,11 @@ import { PeoplePage } from '@/features/people/PeoplePage';
 import { PlannerPage } from '@/features/planner/PlannerPage';
 import { SetupPage } from '@/features/setup/SetupPage';
 import { AssistantWidget } from '@/features/assistant/AssistantWidget';
+import { DashboardPage } from '@/features/dashboard/DashboardPage';
 import { LandingPage } from '@/features/landing/LandingPage';
 import { WorkOrdersPage } from '@/features/workorders/WorkOrdersPage';
 
-type Page = 'planner' | 'workorders' | 'people' | 'setup';
+type Page = 'dashboard' | 'planner' | 'workorders' | 'people' | 'setup';
 
 const APP_HASH = '#/app';
 
@@ -87,7 +88,7 @@ function AppContent({ onHome }: { onHome: () => void }) {
 function Shell({ onHome }: { onHome: () => void }) {
   const { ready, settings, setTheme, lines } = useStore();
   const { session, logout } = useAuth();
-  const [page, setPage] = useState<Page>('planner');
+  const [page, setPage] = useState<Page>('dashboard');
   const [shareOpen, setShareOpen] = useState(false);
 
   useEffect(() => {
@@ -231,6 +232,12 @@ function Shell({ onHome }: { onHome: () => void }) {
         <MainNav page={page} setPage={setPage} className="flex xl:hidden mb-2.5" fill />
       </header>
 
+      {page === 'dashboard' && (
+        <DashboardPage
+          onOpenPlanner={() => setPage('planner')}
+          onOpenWorkOrders={() => setPage('workorders')}
+        />
+      )}
       {page === 'planner' && <PlannerPage />}
       {page === 'workorders' && <WorkOrdersPage onOpenPlanner={() => setPage('planner')} />}
       {page === 'people' && <PeoplePage />}
@@ -242,6 +249,7 @@ function Shell({ onHome }: { onHome: () => void }) {
 }
 
 const NAV_ITEMS = [
+  ['dashboard', 'Dashboard', <HomeIcon key="i" />, 'Board'],
   ['planner', 'Planner', <GridIcon key="i" />, 'Planner'],
   ['workorders', 'Work Orders', <ClipboardIcon key="i" />, 'Orders'],
   ['people', 'People', <PeopleIcon key="i" />, 'People'],
@@ -301,6 +309,15 @@ function MainNav({
         );
       })}
     </nav>
+  );
+}
+
+function HomeIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+      <polyline points="9 22 9 12 15 12 15 22" />
+    </svg>
   );
 }
 
