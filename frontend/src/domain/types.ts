@@ -155,7 +155,7 @@ export interface RosterMonth {
 
 /**
  * Where everything sat in an imported workbook, so Export can write the month
- * back in the supervisor's own template rather than ShiftLine's layout.
+ * back in the supervisor's own template rather than RailOPS's layout.
  */
 export interface SheetLayout {
   sheetName: string;

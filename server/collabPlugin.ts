@@ -329,14 +329,14 @@ export function collabServerPlugin(): Plugin {
           return res.end();
         }
 
-        // Health check for ShiftLine Assistant and API capabilities
+        // Health check for RailOPS Assistant and API capabilities
         if ((url === '/health' || url === '/api/health') && req.method === 'GET') {
           return sendJson(res, 200, { ok: true, ai: true, aiPublic: true });
         }
 
         // Assistant ask endpoint
         if ((url === '/ai/ask' || url === '/api/ai/ask') && req.method === 'POST') {
-          return sendJson(res, 200, { ok: true, message: 'ShiftLine Engine ready' });
+          return sendJson(res, 200, { ok: true, message: 'RailOPS Engine ready' });
         }
 
         // 1. SSE Stream: GET /api/collab/events

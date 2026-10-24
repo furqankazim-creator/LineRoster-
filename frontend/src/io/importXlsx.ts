@@ -9,7 +9,7 @@ export interface ImportedEmployee {
   contact: string;
   /** Operational role (e.g. "PIC", "MP") detected when the adjacent column holds a role code. */
   role?: string;
-  /** Name was marked "(Leader)" in the sheet (as ShiftLine's own exports do). */
+  /** Name was marked "(Leader)" in the sheet (as RailOPS's own exports do). */
   isLeader?: boolean;
   codes: string[];
   restDays: Weekday[];

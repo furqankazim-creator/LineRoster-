@@ -107,7 +107,7 @@ export function AssistantWidget() {
         style={{ marginBottom: 'env(safe-area-inset-bottom, 0px)' }}
       >
         <SparkIcon />
-        {!mobile && <span className="text-[13px] font-semibold">{open ? 'Close' : 'Ask ShiftLine'}</span>}
+        {!mobile && <span className="text-[13px] font-semibold">{open ? 'Close' : 'Ask RailOPS'}</span>}
       </motion.button>
     </>
   );
@@ -200,7 +200,7 @@ function Chat({ onClose }: { onClose: () => void }) {
           <SparkIcon />
         </span>
         <div className="flex flex-col leading-tight">
-          <span className="text-[13px] font-semibold">ShiftLine Assistant</span>
+          <span className="text-[13px] font-semibold">RailOPS Assistant</span>
           <span className="text-[10.5px] text-ink-3">
             {user ? `${user.email} · ` : ''}{monthName(settings.activeMonth)} {settings.activeYear}
           </span>
@@ -216,7 +216,7 @@ function Chat({ onClose }: { onClose: () => void }) {
         <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-2 pt-5 text-center">
           <p className="px-6 text-[13px] font-medium">The assistant is offline</p>
           <p className="px-6 text-[12px] text-ink-3 leading-relaxed">
-            The ShiftLine server is not running. Start it with{' '}
+            The RailOPS server is not running. Start it with{' '}
             <code className="font-mono text-ink-2">cd server &amp;&amp; npm run dev</code>, then reopen this chat.
           </p>
           <QuickHelp />
@@ -411,7 +411,7 @@ function SignIn({ onDone }: { onDone: (u: CloudUser) => void }) {
       className="flex-1 flex flex-col justify-center gap-3 px-6"
     >
       <p className="text-[13px] font-medium">Sign in to chat</p>
-      <p className="-mt-2 text-[12px] text-ink-3">Use your ShiftLine supervisor account.</p>
+      <p className="-mt-2 text-[12px] text-ink-3">Use your RailOPS supervisor account.</p>
       <input
         type="email"
         autoComplete="username"

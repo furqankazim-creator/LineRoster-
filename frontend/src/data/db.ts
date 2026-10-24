@@ -704,7 +704,7 @@ export async function exportBackup(): Promise<string> {
 
 export async function importBackupData(data: any): Promise<void> {
   if (!data || typeof data !== 'object') {
-    throw new Error('That file is not a valid ShiftLine backup.');
+    throw new Error('That file is not a valid RailOPS backup.');
   }
   await db.transaction(
     'rw',
@@ -768,7 +768,7 @@ export async function importBackup(json: string): Promise<void> {
   try {
     data = JSON.parse(json);
   } catch {
-    throw new Error('Selected file is not valid JSON. Please upload a valid ShiftLine .json backup.');
+    throw new Error('Selected file is not valid JSON. Please upload a valid RailOPS .json backup.');
   }
   await importBackupData(data);
   if (getActiveDbName() === 'shiftline' && typeof window !== 'undefined' && typeof fetch !== 'undefined') {

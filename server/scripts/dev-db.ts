@@ -148,7 +148,7 @@ if (await isPortReady(apiPort)) {
   } catch {}
 }
 
-console.log('MongoDB is ready! Starting ShiftLine API...');
+console.log('MongoDB is ready! Starting RailOPS API...');
 
 const localTsx = path.resolve(__dirname, '../node_modules/.bin/tsx');
 const tsxBin = fs.existsSync(localTsx) ? localTsx : path.resolve(__dirname, '../../node_modules/.bin/tsx');

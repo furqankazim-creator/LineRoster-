@@ -1,8 +1,8 @@
-# ShiftLine
+# RailOPS
 
 **Workforce Roster Planning & Work Order Staffing for Multi-Shift Operations.**
 
-ShiftLine is a high-performance shift-roster planning and resource-allocation tool designed for multi-shift industrial and rail operations. Enter each team member's default shift, rest-day pair, rotation rules, and leave — the entire month calculates automatically with live headcounts, coverage warnings, fair auto-rotation, and work-order demand matching. It imports and exports the organization's existing `Line N_MMM-YYYY Roster` Excel layout.
+RailOPS is a high-performance shift-roster planning and resource-allocation tool designed for multi-shift industrial and rail operations. Enter each team member's default shift, rest-day pair, rotation rules, and leave — the entire month calculates automatically with live headcounts, coverage warnings, fair auto-rotation, and work-order demand matching. It imports and exports the organization's existing `Line N_MMM-YYYY Roster` Excel layout.
 
 - **Local-First Architecture:** Everything runs in the browser (IndexedDB). No external database or login required for the core app.
 - **Enterprise & Copilot Compliant:** Fully configured for corporate environments where **Microsoft Copilot** and **GitHub Copilot** are the mandated AI tools. Zero reliance on disallowed third-party AI coding tools (Claude Code, ChatGPT, etc.).
@@ -25,7 +25,7 @@ If presenting or reviewing code inside **VS Code** with the **GitHub Copilot** e
 
 1. Open the `shiftline` project folder in VS Code.
 2. In **GitHub Copilot Chat** (`Ctrl+Shift+I` on Windows / `Cmd+Shift+I` on Mac), ask Copilot:
-   > `@workspace How do I start ShiftLine?`  
+   > `@workspace How do I start RailOPS?`  
    > *or*  
    > `@workspace Run the web app`
 3. GitHub Copilot will read the repository's [`.github/copilot-instructions.md`](file:///Users/imac/Desktop/Roster%20Management/shiftline/.github/copilot-instructions.md) and offer a 1-click button to run the task or execute:
@@ -54,11 +54,11 @@ npm run build        # Compiles production bundle into dist/
 1. **From Microsoft Copilot Web Chat (`copilot.microsoft.com`):**  
    Web chat in a browser cannot directly run OS terminal commands on your local computer to spin up a local server.
 2. **From GitHub Copilot in VS Code:**  
-   **YES!** You can prompt GitHub Copilot `@workspace Start ShiftLine`, and it will trigger the dev server task and open the browser.
+   **YES!** You can prompt GitHub Copilot `@workspace Start RailOPS`, and it will trigger the dev server task and open the browser.
 3. **Presenting in Microsoft Edge with Copilot:**  
-   **YES!** Double-click `start-app.bat`, and ShiftLine opens in Microsoft Edge. Open the **Copilot sidebar in Edge** side-by-side with ShiftLine. Copilot in Edge can read the live page, summarize shift headcounts, and assist supervisors during presentations.
+   **YES!** Double-click `start-app.bat`, and RailOPS opens in Microsoft Edge. Open the **Copilot sidebar in Edge** side-by-side with RailOPS. Copilot in Edge can read the live page, summarize shift headcounts, and assist supervisors during presentations.
 4. **Data Analysis in Copilot:**  
-   You can export the roster Excel file from ShiftLine and upload it directly into Microsoft Copilot Chat for automated management summaries.
+   You can export the roster Excel file from RailOPS and upload it directly into Microsoft Copilot Chat for automated management summaries.
 
 👉 See the full guide: [**`COPILOT_PRESENTATION_GUIDE.md`**](file:///Users/imac/Desktop/Roster%20Management/shiftline/COPILOT_PRESENTATION_GUIDE.md)
 
@@ -71,8 +71,8 @@ npm run build        # Compiles production bundle into dist/
 - `@workspace Explain how Line 4 and Line 6 share their staff pool for work orders.`
 - `@workspace Run the test suite and verify cell-by-cell reproduction of the September sheet.`
 
-### Questions to ask Microsoft Copilot in Microsoft Edge (with ShiftLine open):
-- *"Summarize the staffing deficit visible on this ShiftLine roster page."*
+### Questions to ask Microsoft Copilot in Microsoft Edge (with RailOPS open):
+- *"Summarize the staffing deficit visible on this RailOPS roster page."*
 - *"Explain the night shift fairness distribution shown in the Insights panel."*
 
 ---

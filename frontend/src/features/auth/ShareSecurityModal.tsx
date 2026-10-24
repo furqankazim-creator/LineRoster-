@@ -181,7 +181,7 @@ export function ShareSecurityModal({ open, onClose }: Props) {
     const cleanCode = recipientCode.trim();
     if (!persistAssignedEntry(cleanName, cleanCode, recipientRole, recipientNote)) return;
 
-    const inviteText = `ShiftLine Protected Roster Access:
+    const inviteText = `RailOPS Protected Roster Access:
 👤 Assigned To: ${cleanName}
 🔑 Access Passcode: ${cleanCode}
 🔗 Direct Link: ${currentPersonalUrl}
@@ -208,7 +208,7 @@ export function ShareSecurityModal({ open, onClose }: Props) {
 
   const handleQuickCopyItemInvite = async (item: AssignedPasscode) => {
     const url = getAssignedUrl(item.passcode, item.assignedTo);
-    const invite = `ShiftLine Roster Access
+    const invite = `RailOPS Roster Access
 👤 Name: ${item.assignedTo}
 🔑 Passcode: ${item.passcode}
 🔗 Link: ${url}`;

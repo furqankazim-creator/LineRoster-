@@ -176,7 +176,7 @@ export function LoginGate({ onBackToHome }: Props) {
           <div className="flex justify-center mb-4">
             <AlstomLogo height={28} />
           </div>
-          <h1 className="text-[22px] font-semibold tracking-tight text-ink">Sign in to ShiftLine</h1>
+          <h1 className="text-[22px] font-semibold tracking-tight text-ink">Sign in to RailOPS</h1>
           <p className="mt-1.5 text-[13px] text-ink-2 leading-relaxed">
             This Duty Roster link is protected. Sign in as a team member or supervisor to open it.
           </p>

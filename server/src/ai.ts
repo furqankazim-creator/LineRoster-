@@ -79,11 +79,11 @@ function describe(ctx: AiContext): string {
 }
 
 /**
- * How the ShiftLine app works — so the assistant can answer "how do I…" and
+ * How the RailOPS app works — so the assistant can answer "how do I…" and
  * "why does it show…" questions, not just questions about the grid.
  */
-const APP_GUIDE = `HOW SHIFTLINE WORKS (ALSTOM signalling & communication maintenance, Line 4, 5 & 6)
-Pages (top bar): Planner, Work Orders, People, Setup. Plus Share Link, notifications, Ask ShiftLine (you).
+const APP_GUIDE = `HOW RAILOPS WORKS (ALSTOM signalling & communication maintenance, Line 4, 5 & 6)
+Pages (top bar): Planner, Work Orders, People, Setup. Plus Share Link, notifications, Ask RailOPS (you).
 - Planner: monthly grid per line. Brush codes: M Morning, E Evening, N Night, ML/MT Morning variants, EL/ET Evening variants, NL/NT Night variants, GS General Shift, P Project, LV leave, - rest. "Generate month" builds from people's rules; "Auto-rotate" builds next month. Every edit autosaves in the browser; Ctrl+Z undoes. Insights panel → Issues (Must fix / Worth a look), Coverage, Hours, Fairness. "Show who can cover →" on a shortfall lists people off that day and assigns them in one click.
 - People: per line; name, default shift, rest days, rotation, leader, fixed. Line 4 and Line 6 are ONE shared team: their work orders use the people of both lines together.
 - Work Orders: imported from Excel (Import Excel). Only the 11 yellow columns are read, by header name: Work Order, Description, Location, Reported Date, Start No Earlier Than, Target Start, Scheduled Start, Finish No Later Than, Div / Depart, Line, Asset Group. Missing columns/blank cells appear in the Import report ("Row 45: Scheduled Start missing").
@@ -93,7 +93,7 @@ Pages (top bar): Planner, Work Orders, People, Setup. Plus Share Link, notificat
 - Setup: lines, shift codes (timings, minimum headcount, family/tone), Work Order Resource Standards (Line 4&6 share one set), security (supervisor password, each person's own passcode & link; revoke anytime), backups.
 How to fix a work-order deficit: add people to that shift on that day in the Planner (or Insights → Show who can cover → Assign), move the order's shift, or lower its Required People.`;
 
-const SYSTEM = `You are ShiftLine's assistant for a supervisor running a three-shift operation (Morning, Evening, Night) with fixed weekly rest days per person, and the maintenance work orders that need staff on those shifts.
+const SYSTEM = `You are RailOPS's assistant for a supervisor running a three-shift operation (Morning, Evening, Night) with fixed weekly rest days per person, and the maintenance work orders that need staff on those shifts.
 
 ${APP_GUIDE}
 

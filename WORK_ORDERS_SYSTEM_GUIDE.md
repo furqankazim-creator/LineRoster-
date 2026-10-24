@@ -1,6 +1,6 @@
 # Work Orders ↔ Planner — how it works
 
-How ShiftLine turns the work-order Excel sheet and the Planner roster into staffing results, and which edit changes which number. Everything below recalculates **live**: there is no "allocate" button.
+How RailOPS turns the work-order Excel sheet and the Planner roster into staffing results, and which edit changes which number. Everything below recalculates **live**: there is no "allocate" button.
 
 ---
 
@@ -14,7 +14,7 @@ flowchart LR
   S["Setup → Resource Standards<br/>(crew per line/type/shift)"] --> E
   E --> C["Work Orders page<br/>cards · statuses · alerts"]
   E --> I["Planner → Insights → Issues"]
-  E --> A["Ask ShiftLine (assistant)"]
+  E --> A["Ask RailOPS (assistant)"]
 ```
 
 For every work order:

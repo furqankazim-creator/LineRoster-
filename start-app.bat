@@ -1,13 +1,13 @@
 @echo off
 REM -------------------------------------------------------------
-REM ShiftLine 1-Click Presentation Launcher (Windows)
-REM Double-click this file to launch ShiftLine and open in browser.
+REM RailOPS 1-Click Presentation Launcher (Windows)
+REM Double-click this file to launch RailOPS and open in browser.
 REM -------------------------------------------------------------
 
 cd /d "%~dp0"
 
 echo ==========================================================
-echo  Starting ShiftLine Workforce Roster System...
+echo  Starting RailOPS Workforce Roster System...
 echo ==========================================================
 echo.
 echo Opening web application at: http://localhost:5173

@@ -359,7 +359,7 @@ export function generateAssistantReply(input: AssistantInput): AiReply {
   // 9. Intelligent contextual fallback response
   return {
     answer: [
-      `I am here to assist with **ShiftLine Signalling & Communication Workforce Management**:`,
+      `I am here to assist with **RailOPS Signalling & Communication Workforce Management**:`,
       '',
       `• **Roster Verification**: Ask *"Which days are short-staffed?"* to detect rule or headcount shortfalls.`,
       `• **Smart Coverage**: Ask *"Who can cover Night on the short days?"* to preview and apply instant shift fixes.`,

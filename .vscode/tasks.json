@@ -2,7 +2,7 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Start ShiftLine (Open Web App)",
+      "label": "Start RailOPS (Open Web App)",
       "type": "npm",
       "script": "dev",
       "isBackground": true,
@@ -28,7 +28,7 @@
       }
     },
     {
-      "label": "Run ShiftLine Tests",
+      "label": "Run RailOPS Tests",
       "type": "npm",
       "script": "test",
       "group": {
@@ -41,7 +41,7 @@
       }
     },
     {
-      "label": "Build ShiftLine (Production)",
+      "label": "Build RailOPS (Production)",
       "type": "npm",
       "script": "build",
       "group": "build"

@@ -1,6 +1,6 @@
-# ShiftLine API
+# RailOPS API
 
-Node + Express + MongoDB backend for ShiftLine, with a Groq-powered assistant.
+Node + Express + MongoDB backend for RailOPS, with a Groq-powered assistant.
 It imports the same `src/domain` engine as the web app, so a month generated
 on the server is identical to one generated in the browser.
 

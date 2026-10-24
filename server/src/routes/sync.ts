@@ -365,7 +365,7 @@ export async function seedMongoIfEmpty(): Promise<void> {
       if (raw && Array.isArray(raw.lines) && raw.lines.length > 0) {
         await syncSnapshotToMongo(raw);
         console.log(
-          `Synced detailed ShiftLine dataset to MongoDB (${raw.lines.length} lines, ${raw.employees?.length ?? 0} employees, ${raw.rosters?.length ?? 0} rosters, ${raw.workOrders?.length ?? 0} work orders)`,
+          `Synced detailed RailOPS dataset to MongoDB (${raw.lines.length} lines, ${raw.employees?.length ?? 0} employees, ${raw.rosters?.length ?? 0} rosters, ${raw.workOrders?.length ?? 0} work orders)`,
         );
         return;
       }
@@ -397,7 +397,7 @@ export async function seedMongoIfEmpty(): Promise<void> {
         maxConsecutive: 6,
       },
     });
-    console.log(`Seeded MongoDB with default ShiftLine dataset (${seed.SEED_EMPLOYEES.length} employees)`);
+    console.log(`Seeded MongoDB with default RailOPS dataset (${seed.SEED_EMPLOYEES.length} employees)`);
   } catch (err) {
     console.warn('Failed to seed default dataset into MongoDB:', err);
   }
@@ -411,7 +411,7 @@ syncRouter.get('/', async (_req, res) => {
 
 syncRouter.post('/', requireSupervisor, async (req, res) => {
   const d = await syncSnapshotToMongo(req.body);
-  if (!d) return res.status(400).json({ error: 'That is not a ShiftLine backup.' });
+  if (!d) return res.status(400).json({ error: 'That is not a RailOPS backup.' });
 
   audit(req, 'sync.push', 'all', undefined, {
     lines: d.lines.length,

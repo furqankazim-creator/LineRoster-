@@ -145,7 +145,7 @@ function Shell({ onHome }: { onHome: () => void }) {
             <button
               type="button"
               onClick={onHome}
-              data-tip={'Back to home\nGo to the ShiftLine landing page. You stay signed in on this tab.'}
+              data-tip={'Back to home\nGo to the RailOPS landing page. You stay signed in on this tab.'}
               aria-label="Back to home page"
               className="flex min-w-0 shrink items-center gap-2 sm:gap-3 text-left group py-0.5"
             >
@@ -376,7 +376,7 @@ function ClipboardIcon() {
 function Wordmark({ className }: { className?: string }) {
   return (
     <span className={cx('font-extrabold tracking-[-0.025em] leading-none text-ink', className)}>
-      Shift<span className="text-[var(--accent)]">Line</span>
+      Rail<span className="text-[var(--accent)]">OPS</span>
     </span>
   );
 }

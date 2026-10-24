@@ -1,13 +1,13 @@
 #!/bin/bash
 # -------------------------------------------------------------
-# ShiftLine 1-Click Presentation Launcher (macOS)
-# Double-click this file to launch ShiftLine and open in browser.
+# RailOPS 1-Click Presentation Launcher (macOS)
+# Double-click this file to launch RailOPS and open in browser.
 # -------------------------------------------------------------
 
 cd "$(dirname "$0")"
 
 echo "=========================================================="
-echo " Starting ShiftLine Workforce Roster System..."
+echo " Starting RailOPS Workforce Roster System..."
 echo "=========================================================="
 echo ""
 echo "Opening web application at: http://localhost:5173"
