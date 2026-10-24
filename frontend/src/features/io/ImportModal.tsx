@@ -5,7 +5,7 @@ import { useStore } from '@/app/store';
 import { codeVars } from '@/app/tones';
 import { Button, Modal, Select, Switch, cx } from '@/components/ui';
 import { codeKey, db, newId, patchSettings } from '@/data/db';
-import { MONTH_NAMES, WEEKDAY_LABELS, parseSheetMeta } from '@/domain/calendar';
+import { MONTH_NAMES, WEEKDAY_LABELS, parseSheetMeta, pickRosterSheet } from '@/domain/calendar';
 import { rosterId } from '@/domain/generator';
 import { OFF } from '@/domain/types';
 import type { ImportResult } from '@/io/importXlsx';
@@ -163,49 +163,9 @@ export function ImportModal({
         throw new Error('No sheets found in this file.');
       }
 
-      // Automatically determine the single sheet to open and remove all other sheets
-      const clean = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
-      const baseFileName = file.name.replace(/\.[^/.]+$/, '').trim();
-      const normBase = clean(baseFileName);
-
-      // 1. Exact match with file name (without extension)
-      let targetSheet = names.find((n) => clean(n) === normBase);
-
-      // 2. Partial match with file name
-      if (!targetSheet && normBase.length > 3) {
-        targetSheet = names.find((n) => {
-          const c = clean(n);
-          return c.includes(normBase) || normBase.includes(c);
-        });
-      }
-
-      // 3. Newest month matching active line
-      if (!targetSheet) {
-        const activeLineObj = lines.find((l) => l.id === targetLine || l.id === settings.activeLineId);
-        const activeName = activeLineObj?.name.toLowerCase() ?? '';
-        const isLine46 = activeName.includes('4') && activeName.includes('6');
-
-        const scored = names.map((name) => {
-          const meta = parseSheetMeta(name);
-          const score = (meta.year ?? 0) * 100 + (meta.month ?? 0);
-          const lineMatch = meta.lineName
-            ? (isLine46 && meta.lineName.includes('4') && meta.lineName.includes('6')) ||
-              meta.lineName.toLowerCase() === activeName
-            : false;
-          return { name, score, lineMatch };
-        });
-
-        const lineMatches = scored.filter((s) => s.lineMatch).sort((a, b) => b.score - a.score);
-        if (lineMatches.length > 0) {
-          targetSheet = lineMatches[0].name;
-        } else {
-          // 4. Otherwise, latest/newest month sheet in the workbook
-          scored.sort((a, b) => b.score - a.score);
-          targetSheet = scored[0]?.name;
-        }
-      }
-
-      targetSheet = targetSheet || names[0];
+      // The file decides which sheet opens (see pickRosterSheet); the line open in the app is only a fallback
+      const activeLineObj = lines.find((l) => l.id === targetLine || l.id === settings.activeLineId);
+      const targetSheet = pickRosterSheet(names, file.name, activeLineObj?.name ?? '');
 
       // Remove all other sheets so only the chosen file/sheet is open
       setSheets([targetSheet]);
@@ -695,6 +655,25 @@ export function ImportModal({
               <div className="text-[10.5px] font-semibold uppercase tracking-wider text-ink-3">People</div>
               <div className="text-[13px] font-medium font-mono">{result.employees.length}</div>
             </div>
+            <div className="min-w-0">
+              <div className="text-[10.5px] font-semibold uppercase tracking-wider text-ink-3">Sheet</div>
+              <div className="truncate text-[13px] font-medium" title={`${fileName} · ${result.sheetName}`}>{result.sheetName}</div>
+            </div>
+            {allWorkbookSheets.length > 1 && buffer && (
+              <button
+                type="button"
+                onClick={() => {
+                  // every roster-looking sheet of the file (calendars and notes have no month in their name)
+                  const rosterLike = allWorkbookSheets.filter((n) => parseSheetMeta(n).month);
+                  setSheets(rosterLike.length ? rosterLike : allWorkbookSheets);
+                  setResult(null);
+                  setStage('pick-sheet');
+                }}
+                className="text-[12px] font-medium text-[var(--accent)] hover:underline"
+              >
+                Choose a different sheet
+              </button>
+            )}
             <div className="ml-auto flex items-center gap-3">
               <label className="flex flex-col gap-1">
                 <span className="text-[10.5px] font-semibold uppercase tracking-wider text-ink-3">

@@ -146,3 +146,55 @@ export function todayIndex(year: number, month: number): number | null {
   if (now.getFullYear() !== year || now.getMonth() + 1 !== month) return null;
   return now.getDate() - 1;
 }
+
+
+/**
+ * Which line a roster file is about, from its name: "TSM_SLV_Line 4-6-Roster" → Line 4 & 6,
+ * "Line_5_Roster_SEP_2026" → Line 5. A name that mentions several lines (4, 5 and 6) or none
+ * says nothing.
+ */
+export function lineFromFileName(fileName: string): 'line 4 & 6' | 'line 5' | null {
+  const base = fileName.replace(/\.[^/.]+$/, '');
+  const has = (d: string) => new RegExp(`(^|[^0-9])${d}([^0-9]|$)`).test(base);
+  if (has('4') && has('6') && !has('5')) return 'line 4 & 6';
+  if (has('5') && !has('4') && !has('6')) return 'line 5';
+  return null;
+}
+
+/**
+ * Which sheet of a roster workbook to open, so the FILE the person chose decides:
+ *  1. a sheet named like the file (and only one does),
+ *  2. otherwise the newest month of the line the file's NAME is about,
+ *  3. otherwise (name says nothing) the newest month of the line open in the app,
+ *  4. otherwise the newest month of any sheet.
+ */
+export function pickRosterSheet(sheetNames: string[], fileName: string, openLineName: string): string {
+  const clean = (v: string) => v.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const normBase = clean(fileName.replace(/\.[^/.]+$/, '').trim());
+
+  const exact = sheetNames.find((n) => clean(n) === normBase);
+  if (exact) return exact;
+  if (normBase.length > 3) {
+    // Only when ONE sheet fits: a generic name like "roster.xlsx" fits every sheet, so it decides nothing
+    const partial = sheetNames.filter((n) => {
+      const c = clean(n);
+      return c.length > 5 && (c.includes(normBase) || normBase.includes(c));
+    });
+    if (partial.length === 1) return partial[0];
+  }
+
+  const wanted = (lineFromFileName(fileName) ?? openLineName.toLowerCase()).trim();
+  const wants46 = wanted.includes('4') && wanted.includes('6');
+  const scored = sheetNames.map((name) => {
+    const meta = parseSheetMeta(name);
+    const line = meta.lineName?.toLowerCase().trim() ?? '';
+    return {
+      name,
+      score: (meta.year ?? 0) * 100 + (meta.month ?? 0),
+      lineMatch: !!line && ((wants46 && line.includes('4') && line.includes('6')) || line === wanted),
+    };
+  });
+  const onLine = scored.filter((x) => x.lineMatch).sort((a, b) => b.score - a.score);
+  if (onLine.length) return onLine[0].name;
+  return scored.sort((a, b) => b.score - a.score)[0]?.name ?? sheetNames[0];
+}
