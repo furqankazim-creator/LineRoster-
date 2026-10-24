@@ -450,12 +450,6 @@ export function ImportModal({
               if (file) void onFile(file);
             }}
           />
-          <p className="mt-4 text-[11.5px] text-ink-3 leading-relaxed max-w-sm mx-auto">
-            Works with both simple rosters and operational roster sheets (such as{' '}
-            <span className="font-mono text-ink-2">Line 5_SEP-2026</span> or{' '}
-            <span className="font-mono text-ink-2">SLV_Line 4&6_Roster_SEP_2026</span>). Detects employee names,
-            shift schedules, rotations, and leave automatically.
-          </p>
         </div>
       )}
 
