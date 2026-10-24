@@ -111,7 +111,7 @@ if (isLocalMongo) {
       }
     }
     console.log(`Starting native MongoDB server on port ${mongoPort} (data: ${dbDir})...`);
-    mongodProc = spawn('/usr/bin/mongod', [
+    mongodProc = spawn(process.env.MONGOD_BIN ?? '/usr/bin/mongod', [
       '--dbpath', dbDir,
       '--port', String(mongoPort),
       '--nounixsocket',
@@ -120,6 +120,11 @@ if (isLocalMongo) {
     ], {
       stdio: 'ignore',
       detached: false,
+    });
+    // A missing or unrunnable mongod must not crash the script; the readiness
+    // check below then falls back to MongoMemoryServer.
+    mongodProc.on('error', (err) => {
+      console.warn(`Could not start native mongod: ${err.message}`);
     });
 
     // Wait for MongoDB to actually become ready and respond
@@ -148,7 +153,7 @@ if (await isPortReady(apiPort)) {
   } catch {}
 }
 
-console.log('MongoDB is ready! Starting RailOPS API...');
+console.log('MongoDB is ready! Starting LineRoster API...');
 
 const localTsx = path.resolve(__dirname, '../node_modules/.bin/tsx');
 const tsxBin = fs.existsSync(localTsx) ? localTsx : path.resolve(__dirname, '../../node_modules/.bin/tsx');

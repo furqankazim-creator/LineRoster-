@@ -27,7 +27,7 @@ describe('validate', () => {
    *
    * His Night headcount row reads `… 9, 9, 7, 7, 9, 2, 2, 8 …` — days 25 and
    * 26 fall to two people while every other Fri/Sat pair that month carries
-   * three. Mohammad Monis rotating off Night on day 22 is what drops it, and
+   * three. Greg Pratt rotating off Night on day 22 is what drops it, and
    * the four-strong Fri/Sat rest group can't backfill because they are off.
    *
    * This is exactly the class of mistake the tool exists to surface, so the
@@ -57,7 +57,7 @@ describe('validate', () => {
   });
 
   it('flags an illegal night-to-morning turnaround', () => {
-    // Muhammad Adeel works N; put him on M the next day.
+    // Blake Wallace works N; put him on M the next day.
     let roster = base();
     const day = roster.cells.e07.findIndex((c, i) => c.code === 'N' && roster.cells.e07[i + 1]);
     roster = setCell(roster, 'e07', day + 1, 'M');
@@ -74,14 +74,14 @@ describe('validate', () => {
   });
 
   it('warns when a rest day is worked', () => {
-    // Masudur Ghazi rests Fri + Sat; 4 Sept 2026 is a Friday.
+    // Sean Harper rests Fri + Sat; 4 Sept 2026 is a Friday.
     const roster = setCell(base(), 'e02', 3, 'M');
     const issue = check(roster).find((i) => i.rule === 'rest-days-violated' && i.employeeId === 'e02');
     expect(issue?.severity).toBe('warning');
   });
 
   it('errors when someone is rostered during their own leave block', () => {
-    // Ummer Abbas is on leave 20–30 Sept.
+    // Colin Rhodes is on leave 20–30 Sept.
     const roster = setCell(base(), 'e01', 25, 'M');
     const issue = check(roster).find((i) => i.rule === 'working-while-on-leave');
     expect(issue?.employeeId).toBe('e01');

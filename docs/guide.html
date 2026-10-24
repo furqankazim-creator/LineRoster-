@@ -1,4 +1,4 @@
-<title>RailOPS User Guide</title>
+<title>LineRoster User Guide</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
 <style>
   :root {
@@ -133,7 +133,7 @@
       </div>
       <div class="kicker">User guide</div>
       <h1>Plan a full month of shifts from a handful of rules</h1>
-      <p class="lede">RailOPS replaces the hand-filled roster. Record each person's shift and rest days once; the month is generated, every shift is counted, gaps are flagged, rotation is balanced, and the Excel sheet you already circulate is produced on demand.</p>
+      <p class="lede">LineRoster replaces the hand-filled roster. Record each person's shift and rest days once; the month is generated, every shift is counted, gaps are flagged, rotation is balanced, and the Excel sheet you already circulate is produced on demand.</p>
       <div class="glance">
         <div><b>4</b><small>inputs per person</small></div>
         <div><b>~5 min</b><small>monthly routine</small></div>
@@ -151,7 +151,7 @@
       <h2>What it does</h2>
       <p class="sub">Replacing the hand-filled grid</p>
       <p>Today you fill roughly 660 cells by hand every month — 22 people across 30 days. Every one of those cells follows a pattern: a person's shift, their fixed pair of rest days, occasionally a mid-month shift change, and occasionally leave.</p>
-      <p>RailOPS stores that pattern instead of the cells. You describe each person once, and the month is generated. When you open a month you have never touched, it is already complete. When someone's circumstances change, you change their rule and the grid updates immediately.</p>
+      <p>LineRoster stores that pattern instead of the cells. You describe each person once, and the month is generated. When you open a month you have never touched, it is already complete. When someone's circumstances change, you change their rule and the grid updates immediately.</p>
       <p>The headcount rows at the bottom of your sheet — Engineers Count and Total Head Counts — are recomputed live, and any day that falls below the minimum you set is highlighted before you send anything out.</p>
     </section>
 
@@ -161,10 +161,10 @@
       <div class="tablewrap"><table>
         <thead><tr><th>Input</th><th>Meaning</th><th>Example from your September sheet</th></tr></thead>
         <tbody>
-          <tr><td><b>Default shift</b></td><td>The shift they work on any ordinary day</td><td>Abdul Saeed → <span class="chip c-e">E</span></td></tr>
+          <tr><td><b>Default shift</b></td><td>The shift they work on any ordinary day</td><td>Ben Kemp → <span class="chip c-e">E</span></td></tr>
           <tr><td><b>Rest days</b></td><td>Their fixed two days off each week</td><td>Fri + Sat</td></tr>
           <tr><td><b>Rotation</b> <span style="color:var(--ink-3)">(optional)</span></td><td>A shift change part-way through the month, as day ranges</td><td>Days 1–12 <span class="chip c-n">N</span>, 13–26 <span class="chip c-e">E</span>, 27–30 <span class="chip c-m">M</span></td></tr>
-          <tr><td><b>Leave</b> <span style="color:var(--ink-3)">(optional)</span></td><td>A date range marked as leave or another status</td><td>Ummer Abbas, 20–30 Sept → <span class="chip c-lv">LV</span></td></tr>
+          <tr><td><b>Leave</b> <span style="color:var(--ink-3)">(optional)</span></td><td>A date range marked as leave or another status</td><td>Colin Rhodes, 20–30 Sept → <span class="chip c-lv">LV</span></td></tr>
         </tbody>
       </table></div>
       <h3>How a cell is decided</h3>
@@ -369,7 +369,7 @@
       <h3>Backups and restore</h3>
       <ol class="steps">
         <li><div><b>Setup › Data &amp; Backups › Download backup (JSON).</b><p>Saves one file containing everything — all lines, people, rules, leave and every saved month. Keep it somewhere safe. Do this at the end of each month.</p></div></li>
-        <li><div><b>To restore, press Restore from backup and choose that file.</b><p>The tool checks the file is a valid RailOPS backup, replaces what is in the browser with it, and reloads. Use this to move to another computer or to recover after clearing browser data.</p></div></li>
+        <li><div><b>To restore, press Restore from backup and choose that file.</b><p>The tool checks the file is a valid LineRoster backup, replaces what is in the browser with it, and reloads. Use this to move to another computer or to recover after clearing browser data.</p></div></li>
       </ol>
       <div class="callout"><p>Restore needs a backup file to exist first. If you have never pressed Download backup, there is nothing to restore yet.</p></div>
       <h3>What "Reset to Demo Data" means</h3>
@@ -408,8 +408,8 @@
 
     <section id="benchmark">
       <h2>Industry benchmark</h2>
-      <p class="sub">The standard RailOPS is built to</p>
-      <p>RailOPS follows the established e-roster model — data-driven shift assignment, AI-assisted scheduling, real-time leave tracking and compliance checks — as set out by commercial systems such as the <a class="ext" href="https://pinshiftapp.com/en/e-roster-system" target="_blank" rel="noopener">PinShift eRoster System</a>. The difference is focus: RailOPS is tailored to a fixed three-shift, 5-on / 2-off operation and produces the Excel format your management already uses.</p>
+      <p class="sub">The standard LineRoster is built to</p>
+      <p>LineRoster follows the established e-roster model — data-driven shift assignment, AI-assisted scheduling, real-time leave tracking and compliance checks — as set out by commercial systems such as the <a class="ext" href="https://pinshiftapp.com/en/e-roster-system" target="_blank" rel="noopener">PinShift eRoster System</a>. The difference is focus: LineRoster is tailored to a fixed three-shift, 5-on / 2-off operation and produces the Excel format your management already uses.</p>
     </section>
 
     <section id="confirm">
@@ -420,8 +420,8 @@
         <thead><tr><th>Item</th><th>What we found</th><th>What we assumed</th></tr></thead>
         <tbody>
           <tr><td><b>MT, ML, ET, EL, NT, NL</b></td><td>Referenced in your Total Head Counts formulas but not in the legend</td><td>Support categories that count toward total headcount but not Engineers Count. Added as MT / ET / NT with those settings.</td></tr>
-          <tr><td><b>FLRT</b></td><td>Imran Ghani is marked FLRT for the whole of September</td><td>A non-working status, like leave.</td></tr>
-          <tr><td><b>Red blocks</b></td><td>Ummer Abbas 20–30, Rehan Raziq 1–3, Raneem Almalki 6–10 and 13–17</td><td>Leave. Not counted toward any shift.</td></tr>
+          <tr><td><b>FLRT</b></td><td>Luke Spencer is marked FLRT for the whole of September</td><td>A non-working status, like leave.</td></tr>
+          <tr><td><b>Red blocks</b></td><td>Colin Rhodes 20–30, Eric Nash 1–3, Paul Dawson 6–10 and 13–17</td><td>Leave. Not counted toward any shift.</td></tr>
           <tr><td><b>Minimum headcount</b></td><td>No stated minimum in the sheet</td><td>Morning 2, Evening 2, Night 3, from your thinnest days. Editable in Setup.</td></tr>
           <tr><td><b>"Line 4"</b></td><td>Both tabs in the file are Line 5</td><td>Line 4 created empty, ready for its own file.</td></tr>
           <tr><td><b>Night on 25–26 Sept</b></td><td>Only 2 people on Night; every other Fri/Sat pair has 3</td><td>A genuine gap — flagged in Insights rather than hidden.</td></tr>
@@ -430,7 +430,7 @@
     </section>
 
     <footer>
-      <span class="mini"><svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#101522"/><rect x="12" y="16" width="30" height="8" rx="4" fill="#F0A93B"/><rect x="17" y="28" width="30" height="8" rx="4" fill="#35C2C8"/><rect x="22" y="40" width="30" height="8" rx="4" fill="#7B8CFF"/></svg> RailOPS</span>
+      <span class="mini"><svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#101522"/><rect x="12" y="16" width="30" height="8" rx="4" fill="#F0A93B"/><rect x="17" y="28" width="30" height="8" rx="4" fill="#35C2C8"/><rect x="22" y="40" width="30" height="8" rx="4" fill="#7B8CFF"/></svg> LineRoster</span>
       <span>Workforce Roster Planning · User Guide v1.2</span>
       <span>Everything in this guide reflects the tool as delivered; items under "Please confirm" will be updated once agreed.</span>
     </footer>

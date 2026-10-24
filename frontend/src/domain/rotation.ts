@@ -3,12 +3,12 @@ import { shiftLoad } from './summary';
 import type { Employee, RosterMonth, RotationRule, ShiftCode } from './types';
 
 export const DEFAULT_LEADER_NAMES: string[] = [
-  'Arif Ali khan',
-  'Abdulrahman',
-  'Waqas Tahir',
-  'Abdul Saeed',
-  'Ebora Alexis',
-  'Raneem Almalki',
+  'Victor Lane',
+  'Alan Booth',
+  'Carl Newman',
+  'Ben Kemp',
+  'Ian Stewart',
+  'Paul Dawson',
 ];
 
 export function isLeaderEmployee(employee: Employee): boolean {

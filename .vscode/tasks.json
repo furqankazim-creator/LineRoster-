@@ -2,7 +2,7 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Start RailOPS (Open Web App)",
+      "label": "Start LineRoster (Open Web App)",
       "type": "npm",
       "script": "dev",
       "isBackground": true,
@@ -28,7 +28,7 @@
       }
     },
     {
-      "label": "Run RailOPS Tests",
+      "label": "Run LineRoster Tests",
       "type": "npm",
       "script": "test",
       "group": {
@@ -41,7 +41,7 @@
       }
     },
     {
-      "label": "Build RailOPS (Production)",
+      "label": "Build LineRoster (Production)",
       "type": "npm",
       "script": "build",
       "group": "build"

@@ -2,12 +2,12 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Launch RailOPS in Edge / Chrome",
+      "name": "Launch LineRoster in Edge / Chrome",
       "type": "msedge",
       "request": "launch",
       "url": "http://localhost:5173",
       "webRoot": "${workspaceFolder}/src",
-      "preLaunchTask": "Start RailOPS (Open Web App)"
+      "preLaunchTask": "Start LineRoster (Open Web App)"
     }
   ]
 }

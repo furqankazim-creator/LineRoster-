@@ -1,13 +1,13 @@
 @echo off
 REM -------------------------------------------------------------
-REM RailOPS 1-Click Presentation Launcher (Windows)
-REM Double-click this file to launch RailOPS and open in browser.
+REM LineRoster 1-Click Presentation Launcher (Windows)
+REM Double-click this file to launch LineRoster and open in browser.
 REM -------------------------------------------------------------
 
 cd /d "%~dp0"
 
 echo ==========================================================
-echo  Starting RailOPS Workforce Roster System...
+echo  Starting LineRoster Workforce Roster System...
 echo ==========================================================
 echo.
 echo Opening web application at: http://localhost:5173

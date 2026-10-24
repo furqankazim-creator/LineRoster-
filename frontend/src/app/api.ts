@@ -1,5 +1,5 @@
 /**
- * Thin client for the RailOPS API (server/).
+ * Thin client for the LineRoster API (server/).
  *
  * The web app stays local-first: nothing here is required for it to work.
  * When VITE_API_URL is set and the supervisor has signed in, the app can push

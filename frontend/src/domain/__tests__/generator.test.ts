@@ -62,7 +62,7 @@ describe('summarise — matches the client\'s own COUNTIF rows', () => {
 describe('generateMonth — resolution order', () => {
   it('honours rest days over the default shift', () => {
     const roster = generate();
-    // Masudur Ghazi rests Fri + Sat.
+    // Sean Harper rests Fri + Sat.
     const cols = buildColumns(YEAR, MONTH);
     const row = roster.cells.e02;
     for (const col of cols) {
@@ -75,7 +75,7 @@ describe('generateMonth — resolution order', () => {
 
   it('honours leave over rest days and rotations', () => {
     const roster = generate();
-    // Ummer Abbas is on leave 20–30 Sept.
+    // Colin Rhodes is on leave 20–30 Sept.
     for (let i = 19; i < 30; i++) {
       expect(roster.cells.e01[i].code).toBe('LV');
       expect(roster.cells.e01[i].source).toBe('leave');
@@ -84,7 +84,7 @@ describe('generateMonth — resolution order', () => {
 
   it('applies mid-month rotation ranges', () => {
     const roster = generate();
-    // Abdul Saeed: N for 1–12, E for 13–26, M for 27–30.
+    // Ben Kemp: N for 1–12, E for 13–26, M for 27–30.
     expect(roster.cells.e17[0].code).toBe('N');
     expect(roster.cells.e17[13].code).toBe('E');
     expect(roster.cells.e17[28].code).toBe('M');
@@ -134,7 +134,7 @@ describe('inference — reading rules back out of an existing grid', () => {
 
   it('recovers mid-month rotation blocks', () => {
     const worked = new Set(['M', 'E', 'N', 'GS', 'P']);
-    // Arif Ali khan: E → N → E
+    // Victor Lane: E → N → E
     expect(inferRotations(actual.e15, worked).map((r) => r.code)).toEqual(['E', 'N', 'E']);
     // Someone on one shift all month has no rotation at all.
     expect(inferRotations(actual.e02, worked)).toEqual([]);

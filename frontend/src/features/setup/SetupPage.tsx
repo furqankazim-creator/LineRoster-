@@ -794,7 +794,7 @@ function SecuritySettingsSection({ employees = [] }: { employees?: Employee[] })
 
   const handleCopyInvite = async (item: AssignedPasscode) => {
     const url = getAssignedUrl(item.passcode, item.assignedTo);
-    const inviteText = `RailOPS Protected Roster Access
+    const inviteText = `LineRoster Protected Roster Access
 👤 Assigned To: ${item.assignedTo}
 🔑 Security Password: ${item.passcode}
 🔗 Direct Link: ${url}

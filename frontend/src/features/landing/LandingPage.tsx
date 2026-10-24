@@ -9,12 +9,11 @@ import {
 } from 'react';
 
 import { switchTheme } from '@/app/themeTransition';
-import { AlstomLogo } from '@/components/AlstomLogo';
 import { THEME_STORAGE_KEY, getSettings, getStoredTheme, patchSettings, saveStoredTheme } from '@/data/db';
 
 /* ==========================================================================
    THEME DEFINITIONS & COLOR TOKENS (LIGHT & DARK ENTERPRISE SAAS PALETTES)
-   Tailored for RailOPS: metro signalling & communication roster planning.
+   Tailored for LineRoster: metro signalling & communication roster planning.
    ========================================================================== */
 
 type Theme = 'light' | 'dark';
@@ -255,14 +254,10 @@ export function LandingPage({ onOpen }: { onOpen: () => void }) {
           <button
             onClick={() => scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
             className="flex items-center gap-2 sm:gap-4 group focus:outline-none min-w-0"
-            aria-label="ALSTOM RailOPS"
+            aria-label="LineRoster"
           >
-            {/* Client brand logo */}
-            <span className="sm:hidden"><AlstomLogo height={18} /></span>
-            <span className="hidden sm:inline-flex group-hover:scale-[1.03] transition-transform"><AlstomLogo height={24} /></span>
-            <span className="h-6 sm:h-9 w-px bg-[var(--border-medium)] shrink-0" aria-hidden />
             <span className="flex flex-col text-left min-w-0">
-              <span className="text-base sm:text-xl font-black tracking-tight text-[var(--text-primary)] leading-tight">RailOPS</span>
+              <span className="text-base sm:text-xl font-black tracking-tight text-[var(--text-primary)] leading-tight">LineRoster</span>
               <span className="text-[10.5px] font-semibold tracking-wide uppercase text-[var(--text-muted)] truncate hidden sm:block">
                 Roster &amp; Work-Order Planning
               </span>
@@ -307,10 +302,10 @@ export function LandingPage({ onOpen }: { onOpen: () => void }) {
             </button>
             <button
               onClick={onOpen}
-              aria-label="Open RailOPS"
+              aria-label="Open LineRoster"
               className="inline-flex items-center gap-2 px-3 min-[420px]:px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl text-sm font-extrabold text-white bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 shadow-lg shadow-indigo-500/25 border border-indigo-400/30 transition-all hover:scale-[1.02] active:scale-[0.98]"
             >
-              <span className="hidden sm:inline">Open RailOPS</span>
+              <span className="hidden sm:inline">Open LineRoster</span>
               <span className="hidden min-[420px]:inline sm:hidden">Open</span>
               <ArrowIcon />
             </button>
@@ -381,7 +376,7 @@ export function LandingPage({ onOpen }: { onOpen: () => void }) {
                 onClick={onOpen}
                 className="px-8 sm:px-10 py-4 sm:py-4.5 rounded-xl text-base sm:text-lg font-extrabold text-white bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 shadow-xl shadow-indigo-600/30 transition-all hover:scale-[1.03] active:scale-[0.98] inline-flex items-center gap-3 border border-indigo-400/30"
               >
-                <span>Open RailOPS</span>
+                <span>Open LineRoster</span>
                 <ArrowIcon size={20} />
               </button>
             </div>
@@ -403,10 +398,8 @@ export function LandingPage({ onOpen }: { onOpen: () => void }) {
           {/* Brand */}
           <div>
             <div className="flex items-center gap-3.5">
-              <AlstomLogo height={22} />
-              <span className="h-8 w-px bg-[var(--border-medium)]" aria-hidden />
               <div className="leading-tight">
-                <div className="text-lg font-black tracking-tight text-[var(--text-primary)]">RailOPS</div>
+                <div className="text-lg font-black tracking-tight text-[var(--text-primary)]">LineRoster</div>
                 <div className="text-[10.5px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
                   Roster &amp; Work-Order Planning
                 </div>
@@ -469,7 +462,7 @@ export function LandingPage({ onOpen }: { onOpen: () => void }) {
               onClick={onOpen}
               className="mt-4 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-extrabold text-white bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 shadow-lg shadow-indigo-500/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
             >
-              Open RailOPS
+              Open LineRoster
               <ArrowIcon size={14} />
             </button>
           </div>
@@ -477,10 +470,10 @@ export function LandingPage({ onOpen }: { onOpen: () => void }) {
 
         <div className="border-t border-[var(--border-subtle)]">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex flex-col md:flex-row items-center justify-between gap-3 text-[11.5px] text-[var(--text-muted)] text-center md:text-left">
-            <span>RailOPS · Signalling &amp; Communication Workforce Management System</span>
+            <span>LineRoster · Signalling &amp; Communication Workforce Management System</span>
             <span className="flex items-center gap-2">
               <span className="w-1.5 h-1.5 rounded-full bg-[var(--alert-green)]" />
-              Prepared by Arif Ali Khan
+              Built by TimeGlobal
             </span>
           </div>
         </div>

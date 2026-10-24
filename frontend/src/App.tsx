@@ -3,7 +3,6 @@ import { useEffect, useState } from 'react';
 
 import { StoreProvider, useStore } from '@/app/store';
 import { switchTheme } from '@/app/themeTransition';
-import { AlstomLogo } from '@/components/AlstomLogo';
 import { TipLayer } from '@/components/TipLayer';
 import { Button, ToastHost, cx } from '@/components/ui';
 import { THEME_STORAGE_KEY, getStoredTheme, saveStoredTheme } from '@/data/db';
@@ -123,7 +122,6 @@ function Shell({ onHome }: { onHome: () => void }) {
     return (
       <div className="h-full grid place-items-center">
         <div className="flex flex-col items-center gap-3">
-          <AlstomLogo height={26} />
           <Wordmark className="text-[18px]" />
           <span className="text-[12px] text-ink-3">Loading roster…</span>
         </div>
@@ -145,22 +143,15 @@ function Shell({ onHome }: { onHome: () => void }) {
             <button
               type="button"
               onClick={onHome}
-              data-tip={'Back to home\nGo to the RailOPS landing page. You stay signed in on this tab.'}
+              data-tip={'Back to home\nGo to the LineRoster landing page. You stay signed in on this tab.'}
               aria-label="Back to home page"
               className="flex min-w-0 shrink items-center gap-2 sm:gap-3 text-left group py-0.5"
             >
-              <span className="sm:hidden shrink-0">
-                <AlstomLogo height={17} className="group-hover:opacity-85 transition-opacity" />
-              </span>
-              <span className="hidden sm:inline-flex shrink-0">
-                <AlstomLogo height={21} className="group-hover:opacity-85 transition-opacity" />
-              </span>
-              <span className="h-6 sm:h-8 w-px shrink-0 bg-[var(--line)]" aria-hidden />
               <div className="flex min-w-0 flex-col leading-tight">
                 <Wordmark className="whitespace-nowrap text-[15px] sm:text-[17.5px] font-black group-hover:text-[var(--accent)] transition-colors" />
                 <span className="hidden md:block truncate text-[11.5px] min-[1500px]:text-[12px] font-bold text-ink-3">
                   {/* Full subtitle only where there is room: tablets-landscape and ≥1536px */}
-                  <span className="hidden lg:inline min-[1500px]:hidden min-[1800px]:inline">Riyadh SLV Maintenance <span className="text-ink-3">·</span> </span>
+                  <span className="hidden lg:inline min-[1500px]:hidden min-[1800px]:inline">SLV Maintenance <span className="text-ink-3">·</span> </span>
                   {line?.name} <span className="text-ink-3">·</span> {monthLabel(settings.activeYear, settings.activeMonth)}
                 </span>
               </div>
@@ -377,7 +368,7 @@ function ClipboardIcon() {
 function Wordmark({ className }: { className?: string }) {
   return (
     <span className={cx('font-extrabold tracking-[-0.025em] leading-none text-ink', className)}>
-      Rail<span className="text-[var(--accent)]">OPS</span>
+      Line<span className="text-[var(--accent)]">Roster</span>
     </span>
   );
 }

@@ -88,93 +88,93 @@ export const SEED_CODES: ShiftCode[] = [
 export const SEED_EMPLOYEES: Employee[] = [
   {
     id: 'e01', lineId: 'line5', order: 1,
-    name: 'Ummer Abbas', contact: '575435291',
+    name: 'Colin Rhodes', contact: '575435291',
     defaultShift: 'M', restDays: [0, 1],
     pinned: false, active: true,
   },
   {
     id: 'e02', lineId: 'line5', order: 2,
-    name: 'Masudur Ghazi', contact: '531401478',
+    name: 'Sean Harper', contact: '531401478',
     defaultShift: 'M', restDays: [5, 6],
     pinned: false, active: true,
   },
   {
     id: 'e03', lineId: 'line5', order: 3,
-    name: 'Mohammed Mustafa', contact: '534467057',
+    name: 'Theo Lawson', contact: '534467057',
     defaultShift: 'M', restDays: [2, 3],
     pinned: false, active: true,
   },
   {
     id: 'e04', lineId: 'line5', order: 4,
-    name: 'Nazir Ahmed', contact: '594731601',
+    name: 'Jasper Holt', contact: '594731601',
     defaultShift: 'E', restDays: [4, 5],
     pinned: false, active: true,
   },
   {
     id: 'e05', lineId: 'line5', order: 5,
-    name: 'Masaud Rana', contact: '532476245',
+    name: 'Connor Doyle', contact: '532476245',
     defaultShift: 'E', restDays: [0, 1],
     rotations: { '2026-09': [{ fromDay: 1, toDay: 21, code: 'E' }, { fromDay: 22, toDay: 30, code: 'M' }] },
     pinned: false, active: true,
   },
   {
     id: 'e06', lineId: 'line5', order: 6,
-    name: 'Waqas Tahir', contact: '575826285',
+    name: 'Carl Newman', contact: '575826285',
     defaultShift: 'E', restDays: [2, 3],
     pinned: false, active: true, isLeader: true,
   },
   {
     id: 'e07', lineId: 'line5', order: 7,
-    name: 'Muhammad Adeel', contact: '599406802',
+    name: 'Blake Wallace', contact: '599406802',
     defaultShift: 'N', restDays: [2, 3],
     pinned: false, active: true,
   },
   {
     id: 'e08', lineId: 'line5', order: 8,
-    name: 'Mohammad Monis', contact: '544352527',
+    name: 'Greg Pratt', contact: '544352527',
     defaultShift: 'N', restDays: [0, 1],
     rotations: { '2026-09': [{ fromDay: 1, toDay: 21, code: 'N' }, { fromDay: 22, toDay: 30, code: 'E' }] },
     pinned: false, active: true,
   },
   {
     id: 'e09', lineId: 'line5', order: 9,
-    name: 'Ebora Alexis', contact: '533934362',
+    name: 'Ian Stewart', contact: '533934362',
     defaultShift: 'N', restDays: [2, 3],
     pinned: false, active: true, isLeader: true,
   },
   {
     id: 'e10', lineId: 'line5', order: 10,
-    name: 'Abdulaziz Alhaqbani', contact: '555722889',
+    name: 'Max Fletcher', contact: '555722889',
     defaultShift: 'N', restDays: [5, 6],
     pinned: false, active: true,
   },
   {
     id: 'e11', lineId: 'line5', order: 11,
-    name: 'Ali Alammar', contact: '538284835',
+    name: 'Dean Porter', contact: '538284835',
     defaultShift: 'N', restDays: [5, 6],
     pinned: false, active: true,
   },
   {
     id: 'e12', lineId: 'line5', order: 12,
-    name: 'Mithun Kumar', contact: '539288373',
+    name: 'Derek Lowe', contact: '539288373',
     defaultShift: 'N', restDays: [5, 6],
     pinned: false, active: true,
   },
   {
     id: 'e13', lineId: 'line5', order: 13,
-    name: 'Abdulaziz ALMAIMONI', contact: '541723760',
+    name: 'Mark Ellis', contact: '541723760',
     defaultShift: 'N', restDays: [5, 6],
     pinned: false, active: true,
   },
   {
     id: 'e14', lineId: 'line5', order: 14,
-    name: 'Imran Ghani', contact: '558837005',
+    name: 'Luke Spencer', contact: '558837005',
     defaultShift: 'GS', restDays: [],
     pinned: true, active: true,
   },
   {
     id: 'e15', lineId: 'line5', order: 15,
-    name: 'Arif Ali khan', contact: '594570624',
+    name: 'Victor Lane', contact: '594570624',
     defaultShift: 'E', restDays: [5, 6],
     rotations: {
       '2026-09': [
@@ -187,7 +187,7 @@ export const SEED_EMPLOYEES: Employee[] = [
   },
   {
     id: 'e16', lineId: 'line5', order: 16,
-    name: 'Rehan Raziq', contact: '594685701',
+    name: 'Eric Nash', contact: '594685701',
     defaultShift: 'GS', restDays: [5, 6],
     rotations: {
       '2026-09': [
@@ -200,7 +200,7 @@ export const SEED_EMPLOYEES: Employee[] = [
   },
   {
     id: 'e17', lineId: 'line5', order: 17,
-    name: 'Abdul Saeed', contact: '591826412',
+    name: 'Ben Kemp', contact: '591826412',
     defaultShift: 'E', restDays: [5, 6],
     rotations: {
       '2026-09': [
@@ -213,21 +213,21 @@ export const SEED_EMPLOYEES: Employee[] = [
   },
   {
     id: 'e18', lineId: 'line5', order: 18,
-    name: 'Chandra Vadla', contact: '536542847',
+    name: 'Graham Pope', contact: '536542847',
     defaultShift: 'GS', restDays: [5, 6],
     rotations: { '2026-09': [{ fromDay: 1, toDay: 5, code: 'M' }, { fromDay: 6, toDay: 30, code: 'GS' }] },
     pinned: true, active: true,
   },
   {
     id: 'e19', lineId: 'line5', order: 19,
-    name: 'Nasir Bilal', contact: '544657260',
+    name: 'Neil Burke', contact: '544657260',
     defaultShift: 'GS', restDays: [5, 6],
     rotations: { '2026-09': [{ fromDay: 1, toDay: 19, code: 'GS' }, { fromDay: 20, toDay: 30, code: 'N' }] },
     pinned: true, active: true,
   },
   {
     id: 'e20', lineId: 'line5', order: 20,
-    name: 'Abdulrahman', contact: '569906414',
+    name: 'Alan Booth', contact: '569906414',
     // His Fri/Sat cells are blank rather than "-" in the source sheet; the
     // pattern is identical to the rest of the GS group, so read as Fri+Sat off.
     defaultShift: 'GS', restDays: [5, 6],
@@ -235,14 +235,14 @@ export const SEED_EMPLOYEES: Employee[] = [
   },
   {
     id: 'e21', lineId: 'line5', order: 21,
-    name: 'Raneem Almalki', contact: '569240749',
+    name: 'Paul Dawson', contact: '569240749',
     defaultShift: 'N', restDays: [5, 6],
     rotations: { '2026-09': [{ fromDay: 1, toDay: 19, code: 'M' }, { fromDay: 20, toDay: 30, code: 'N' }] },
     pinned: false, active: true, isLeader: true,
   },
   {
     id: 'e22', lineId: 'line5', order: 22,
-    name: 'Mthaye Alsharif', contact: '563211464',
+    name: 'Tom Sutton', contact: '563211464',
     defaultShift: 'P', restDays: [5, 6],
     pinned: true, active: true,
   },

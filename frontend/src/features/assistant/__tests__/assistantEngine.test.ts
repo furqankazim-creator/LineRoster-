@@ -47,7 +47,7 @@ const workload = computeWorkload({
   requirements: [],
 });
 
-describe('RailOPS Assistant Engine', () => {
+describe('LineRoster Assistant Engine', () => {
   it('answers "Who has worked the most nights?" with leaderboard', () => {
     const res = generateAssistantReply({
       lineId: LINE,

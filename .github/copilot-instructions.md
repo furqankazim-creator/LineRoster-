@@ -1,16 +1,16 @@
-# GitHub Copilot Custom Instructions for RailOPS
+# GitHub Copilot Custom Instructions for LineRoster
 
 ## Project Identity & Purpose
-**RailOPS** is a high-performance, local-first workforce roster and shift planning system designed for multi-shift industrial and rail operations (5-on / 2-off shift cycles, Morning/Evening/Night rotations, and work order crew allocations).
+**LineRoster** is a high-performance, local-first workforce roster and shift planning system designed for multi-shift industrial and rail operations (5-on / 2-off shift cycles, Morning/Evening/Night rotations, and work order crew allocations).
 
 - **Core Web Application**: Built with React 18, TypeScript, Vite, Tailwind CSS, Framer Motion, and Dexie (IndexedDB). Fully local-first: data is stored in the browser's IndexedDB without requiring external cloud databases or logins.
 - **Enterprise & Copilot Compliant**: Designed to operate cleanly within strict corporate environments where Microsoft Copilot and GitHub Copilot are the sole permitted AI assistants.
 
 ---
 
-## How to Run & Present RailOPS
+## How to Run & Present LineRoster
 
-When the user asks how to run, launch, or present RailOPS, always provide these commands:
+When the user asks how to run, launch, or present LineRoster, always provide these commands:
 
 1. **Development Server (Auto-opens in default browser)**:
    ```bash
@@ -76,7 +76,7 @@ For any given person and day, the shift code is determined by the **first matchi
 
 When helping the user present this software to stakeholders or managers:
 1. **In VS Code (GitHub Copilot)**:
-   - Guide the presenter to use `@workspace Start RailOPS` or run task `Start RailOPS (Open Web App)`.
+   - Guide the presenter to use `@workspace Start LineRoster` or run task `Start LineRoster (Open Web App)`.
    - Copilot can explain any function or test directly to the client during a live code review.
 2. **In Microsoft Edge / Browser (Microsoft Copilot)**:
    - The presenter can keep Microsoft Copilot open in Edge's side panel alongside `http://localhost:5173`.

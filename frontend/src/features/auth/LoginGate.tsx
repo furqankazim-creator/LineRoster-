@@ -2,7 +2,6 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
 
 import { switchTheme } from '@/app/themeTransition';
-import { AlstomLogo } from '@/components/AlstomLogo';
 import { Button, Input, Segmented } from '@/components/ui';
 import { THEME_STORAGE_KEY, getStoredTheme, patchSettings, saveStoredTheme } from '@/data/db';
 
@@ -173,10 +172,7 @@ export function LoginGate({ onBackToHome }: Props) {
 
         {/* Brand */}
         <div className="text-center">
-          <div className="flex justify-center mb-4">
-            <AlstomLogo height={28} />
-          </div>
-          <h1 className="text-[22px] font-semibold tracking-tight text-ink">Sign in to RailOPS</h1>
+          <h1 className="text-[22px] font-semibold tracking-tight text-ink">Sign in to LineRoster</h1>
           <p className="mt-1.5 text-[13px] text-ink-2 leading-relaxed">
             This Duty Roster link is protected. Sign in as a team member or supervisor to open it.
           </p>

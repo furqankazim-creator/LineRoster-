@@ -23,7 +23,7 @@ export function ExportModal({ open, onClose }: { open: boolean; onClose: () => v
     {
       key: 'backup-xlsx',
       title: 'Save backup data export (.xlsx)',
-      body: 'Full Excel backup workbook containing all lines, rosters, employees, and settings. Can be re-imported into RailOPS anytime to restore the entire system.',
+      body: 'Full Excel backup workbook containing all lines, rosters, employees, and settings. Can be re-imported into LineRoster anytime to restore the entire system.',
       action: async () => {
         if (!roster) return;
         const [{ getFullBackupData }, { downloadBackupXlsx }] = await Promise.all([

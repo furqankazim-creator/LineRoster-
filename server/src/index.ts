@@ -62,7 +62,7 @@ async function main() {
   await seedAdmin();
   await seedCollabInMongo();
   await seedMongoIfEmpty();
-  const server = app.listen(config.port, '0.0.0.0', () => console.log(`RailOPS API on http://localhost:${config.port}`));
+  const server = app.listen(config.port, '0.0.0.0', () => console.log(`LineRoster API on http://localhost:${config.port}`));
   server.on('error', (err: NodeJS.ErrnoException) => {
     if (err.code === 'EADDRINUSE') {
       console.error(

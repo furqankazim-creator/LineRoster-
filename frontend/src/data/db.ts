@@ -1,4 +1,5 @@
 import type { WorkOrderColumn } from '@/domain/workOrderColumns';
+import { DUMMY_NAMES } from './dummyNames';
 import Dexie, { type EntityTable } from 'dexie';
 
 import type {
@@ -343,6 +344,14 @@ class RosterDB extends Dexie {
       // Work orders are never seeded: each team starts empty and imports its own file
       const rrTable = tx.table('resourceRequirements');
       await rrTable.bulkPut(SEED_RESOURCE_REQUIREMENTS);
+    });
+
+    // v8: swap real staff names for demo names
+    this.version(8).stores({}).upgrade(async (tx) => {
+      await tx.table('employees').toCollection().modify((e) => {
+        const name = DUMMY_NAMES[e.id];
+        if (name) e.name = name;
+      });
     });
   }
 }
@@ -704,7 +713,7 @@ export async function exportBackup(): Promise<string> {
 
 export async function importBackupData(data: any): Promise<void> {
   if (!data || typeof data !== 'object') {
-    throw new Error('That file is not a valid RailOPS backup.');
+    throw new Error('That file is not a valid LineRoster backup.');
   }
   await db.transaction(
     'rw',
@@ -768,7 +777,7 @@ export async function importBackup(json: string): Promise<void> {
   try {
     data = JSON.parse(json);
   } catch {
-    throw new Error('Selected file is not valid JSON. Please upload a valid RailOPS .json backup.');
+    throw new Error('Selected file is not valid JSON. Please upload a valid LineRoster .json backup.');
   }
   await importBackupData(data);
   if (getActiveDbName() === 'shiftline' && typeof window !== 'undefined' && typeof fetch !== 'undefined') {
