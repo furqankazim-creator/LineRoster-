@@ -136,12 +136,12 @@ function Shell({ onHome }: { onHome: () => void }) {
   return (
     <div className="flex h-full flex-col">
       <header
-        className="no-print relative mx-2 sm:mx-4 xl:mx-6 my-2 sm:my-3 shrink-0 rounded-2xl border border-[var(--line-strong)] bg-[var(--surface)] px-3 sm:px-5 xl:px-5 2xl:px-7 z-50 shadow-sm"
+        className="no-print relative mx-2 sm:mx-4 min-[1500px]:mx-6 my-2 sm:my-3 shrink-0 rounded-2xl border border-[var(--line-strong)] bg-[var(--surface)] px-3 sm:px-5 min-[1500px]:px-5 min-[1800px]:px-7 z-50 shadow-sm"
         style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
       >
         {/* Row 1: brand · (desktop: tabs) · actions */}
-        <div className="flex h-14 xl:h-16 items-center justify-between gap-2 sm:gap-4">
-          <div className="flex min-w-0 items-center gap-3 xl:gap-4 2xl:gap-6">
+        <div className="flex h-14 min-[1500px]:h-16 items-center justify-between gap-2 sm:gap-4">
+          <div className="flex min-w-0 items-center gap-3 min-[1500px]:gap-4 min-[1800px]:gap-6">
             <button
               type="button"
               onClick={onHome}
@@ -149,29 +149,29 @@ function Shell({ onHome }: { onHome: () => void }) {
               aria-label="Back to home page"
               className="flex min-w-0 shrink items-center gap-2 sm:gap-3 text-left group py-0.5"
             >
-              <span className="sm:hidden">
+              <span className="sm:hidden shrink-0">
                 <AlstomLogo height={17} className="group-hover:opacity-85 transition-opacity" />
               </span>
-              <span className="hidden sm:inline-flex">
+              <span className="hidden sm:inline-flex shrink-0">
                 <AlstomLogo height={21} className="group-hover:opacity-85 transition-opacity" />
               </span>
               <span className="h-6 sm:h-8 w-px shrink-0 bg-[var(--line)]" aria-hidden />
               <div className="flex min-w-0 flex-col leading-tight">
-                <Wordmark className="text-[15px] sm:text-[17.5px] font-black group-hover:text-[var(--accent)] transition-colors" />
-                <span className="hidden md:block truncate text-[11.5px] xl:text-[12px] font-bold text-ink-3">
+                <Wordmark className="whitespace-nowrap text-[15px] sm:text-[17.5px] font-black group-hover:text-[var(--accent)] transition-colors" />
+                <span className="hidden md:block truncate text-[11.5px] min-[1500px]:text-[12px] font-bold text-ink-3">
                   {/* Full subtitle only where there is room: tablets-landscape and ≥1536px */}
-                  <span className="hidden lg:inline xl:hidden 2xl:inline">Riyadh SLV Maintenance <span className="text-ink-3">·</span> </span>
+                  <span className="hidden lg:inline min-[1500px]:hidden min-[1800px]:inline">Riyadh SLV Maintenance <span className="text-ink-3">·</span> </span>
                   {line?.name} <span className="text-ink-3">·</span> {monthLabel(settings.activeYear, settings.activeMonth)}
                 </span>
               </div>
             </button>
 
             {/* Desktop: tabs inline */}
-            <span className="hidden xl:block h-7 w-px bg-[var(--line)]" aria-hidden />
-            <MainNav page={page} setPage={setPage} className="hidden xl:flex shrink-0" />
+            <span className="hidden min-[1500px]:block h-7 w-px bg-[var(--line)]" aria-hidden />
+            <MainNav page={page} setPage={setPage} className="hidden min-[1500px]:flex shrink-0" />
           </div>
 
-          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2.5 xl:gap-3">
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2.5 min-[1500px]:gap-3">
             <span className="hidden sm:contents">
               <LivePresence />
             </span>
@@ -197,7 +197,7 @@ function Shell({ onHome }: { onHome: () => void }) {
             {/* User badge & Lock button */}
             <div className="flex items-center gap-2.5 sm:pl-2.5 sm:border-l border-[var(--line)]">
               <div
-                className="hidden 2xl:flex flex-col text-right leading-tight max-w-[170px]"
+                className="hidden min-[1800px]:flex flex-col text-right leading-tight max-w-[170px]"
                 title={`Signed in as ${session?.name ?? 'User'} (${session?.role ?? 'viewer'})`}
               >
                 <span className="truncate text-[12px] font-bold text-ink">
@@ -255,7 +255,7 @@ function Shell({ onHome }: { onHome: () => void }) {
         </div>
 
         {/* Row 2 (below desktop): tabs across the full width */}
-        <MainNav page={page} setPage={setPage} className="flex xl:hidden mb-2.5" fill />
+        <MainNav page={page} setPage={setPage} className="flex min-[1500px]:hidden mb-2.5" fill />
       </header>
 
       {page === 'dashboard' && (
@@ -324,7 +324,7 @@ function MainNav({
               'flex items-center justify-center rounded-lg font-bold transition-all whitespace-nowrap',
               fill
                 ? 'flex-1 min-w-0 flex-col sm:flex-row gap-0.5 sm:gap-2 px-1 sm:px-3 py-1 sm:py-1.5 text-[11px] sm:text-[13px]'
-                : 'gap-1.5 2xl:gap-2 px-3 2xl:px-4 py-1.5 text-[13px] 2xl:text-[13.5px]',
+                : 'gap-1.5 min-[1800px]:gap-2 px-3 min-[1800px]:px-4 py-1.5 text-[13px] min-[1800px]:text-[13.5px]',
               active
                 ? 'bg-[var(--surface)] text-ink shadow-sm border border-[var(--line-strong)]'
                 : 'border border-transparent text-ink-3 hover:text-ink hover:bg-[var(--surface-3)]/60',
@@ -336,13 +336,14 @@ function MainNav({
               {fill ? (
                 <>
                   <span className="sm:hidden">{short}</span>
-                  <span className="hidden sm:inline">{label}</span>
+                  <span className="hidden sm:inline lg:hidden">{label.replace('Maintenance ', '')}</span>
+                  <span className="hidden lg:inline">{label}</span>
                 </>
               ) : (
                 <>
                   {/* Laptops drop "Maintenance" so the tabs never crowd the brand */}
-                  <span className="2xl:hidden">{label.replace('Maintenance ', '')}</span>
-                  <span className="hidden 2xl:inline">{label}</span>
+                  <span className="min-[1800px]:hidden">{label.replace('Maintenance ', '')}</span>
+                  <span className="hidden min-[1800px]:inline">{label}</span>
                 </>
               )}
             </span>
