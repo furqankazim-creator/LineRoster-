@@ -54,7 +54,7 @@ export const WORK_ORDER_COLUMNS: WorkOrderColumn[] = [
   { excelHeader: 'Div / Depart', aliases: ['Div/Dept', 'Division', 'Department', 'Div Depart'], appField: 'department', required: true, type: 'text',
     usedFor: 'Department / division, e.g. SLV, TSM.' },
   { excelHeader: 'Line', appField: 'line', required: true, type: 'line',
-    usedFor: 'Line 5 / 4&6 — which team staffs the work (Line 4&6 are one team).' },
+    usedFor: 'Line 4, 5 & 6 — which team staffs the work (Line 4&6 are one team).' },
   { excelHeader: 'Asset Group', appField: 'assetGroup', required: true, type: 'text',
     usedFor: 'DCS, SIG, ISM, CCT, PAS, …' },
 ];

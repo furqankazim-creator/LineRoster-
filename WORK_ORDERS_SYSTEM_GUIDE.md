@@ -23,7 +23,7 @@ For every work order:
 |---|---|
 | **Day** | Its **Scheduled Start** date (never another month's roster). |
 | **Shift** | Its own planned shift; otherwise CM → Evening, PM needing 4+ → Night, everything else → Morning. |
-| **Team** | **Line 5** = Line 5 people. **Line 4&6 = one shared team** (people of both lines together). Combined = **Line 5 / 4&6**. |
+| **Team** | **Line 5** = Line 5 people. **Line 4&6 = one shared team** (people of both lines together). Combined = **Line 4, 5 & 6**. |
 | **Available** | People of that team whose Planner cell that day belongs to the shift's family. `M`, `ML`, `MT` count as Morning (same for Evening and Night). GS, Project, Leave and rest do **not** count. |
 | **Crew needed** | The Setup standard for line + type + shift, unless the row has its own number (set with −/+). |
 | **Assignment** | Free people on that shift are handed out; nobody is booked twice on the same day and shift. A hand-picked crew (Manage Crew) is kept while those people are still on the shift. |

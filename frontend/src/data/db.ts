@@ -86,6 +86,8 @@ export interface WorkOrderImportReport {
   at: number;
   rows: number;
   headerRow: number;
+  /** Which sheet of the workbook was read. */
+  sheetName?: string;
   /** Whole-file problems, e.g. a configured column not found. */
   fileErrors: string[];
   /** Rows with at least one problem. */

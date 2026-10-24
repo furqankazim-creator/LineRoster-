@@ -82,7 +82,7 @@ function describe(ctx: AiContext): string {
  * How the ShiftLine app works — so the assistant can answer "how do I…" and
  * "why does it show…" questions, not just questions about the grid.
  */
-const APP_GUIDE = `HOW SHIFTLINE WORKS (ALSTOM signalling & communication maintenance, Line 5 / 4&6)
+const APP_GUIDE = `HOW SHIFTLINE WORKS (ALSTOM signalling & communication maintenance, Line 4, 5 & 6)
 Pages (top bar): Planner, Work Orders, People, Setup. Plus Share Link, notifications, Ask ShiftLine (you).
 - Planner: monthly grid per line. Brush codes: M Morning, E Evening, N Night, ML/MT Morning variants, EL/ET Evening variants, NL/NT Night variants, GS General Shift, P Project, LV leave, - rest. "Generate month" builds from people's rules; "Auto-rotate" builds next month. Every edit autosaves in the browser; Ctrl+Z undoes. Insights panel → Issues (Must fix / Worth a look), Coverage, Hours, Fairness. "Show who can cover →" on a shortfall lists people off that day and assigns them in one click.
 - People: per line; name, default shift, rest days, rotation, leader, fixed. Line 4 and Line 6 are ONE shared team: their work orders use the people of both lines together.

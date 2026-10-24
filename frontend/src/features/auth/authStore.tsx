@@ -179,12 +179,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return null;
       }
 
+      // A sign-in belongs to ONE tab: a refresh keeps it, but an address pasted into a new
+      // tab or window starts signed out and asks for the login.
       const tabStored = sessionStorage.getItem(TAB_SESSION_KEY);
-      let s: UserSession | null = tabStored ? JSON.parse(tabStored) : null;
-      if (!s) {
-        const globalStored = localStorage.getItem(GLOBAL_SESSION_KEY);
-        if (globalStored) s = JSON.parse(globalStored);
-      }
+      const s: UserSession | null = tabStored ? JSON.parse(tabStored) : null;
+      // Drop any shared sign-in an older version left behind in this browser
+      localStorage.removeItem(GLOBAL_SESSION_KEY);
       if (s) {
         s.name = s.name.replace(/ \/ Operations Lead/g, '').trim() || 'Supervisor';
         if (s.role !== 'supervisor' && s.passcodeUsed) {
@@ -253,6 +253,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Save Settings & Broadcast to all open tabs
   const updateSecuritySettings = useCallback((patch: Partial<SecuritySettings>) => {
+    // Only a signed-in supervisor may change the supervisor master password
+    if ('adminPassword' in patch && sessionRef.current?.role !== 'supervisor') {
+      const { adminPassword: _ignored, ...rest } = patch;
+      patch = rest;
+    }
     setSecuritySettings((prev) => {
       const next = normalizeSecuritySettings({ ...prev, ...patch, updatedAt: Date.now() });
       persistSettingsLocally(next);
@@ -939,9 +944,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       setSession(newSession);
       sessionStorage.setItem(TAB_SESSION_KEY, JSON.stringify(newSession));
-      if (role === 'supervisor') {
-        localStorage.setItem(GLOBAL_SESSION_KEY, JSON.stringify(newSession));
-      }
 
       // Create notification
       const notif: LoginNotification = {
@@ -1031,7 +1033,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       setSession(newSession);
       sessionStorage.setItem(TAB_SESSION_KEY, JSON.stringify(newSession));
-      localStorage.setItem(GLOBAL_SESSION_KEY, JSON.stringify(newSession));
 
       const notif: LoginNotification = {
         id: `notif-${Date.now()}`,
@@ -1145,9 +1146,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     setSession(null);
     sessionStorage.removeItem(TAB_SESSION_KEY);
-    if (session?.role === 'supervisor') {
-      localStorage.removeItem(GLOBAL_SESSION_KEY);
-    }
+    localStorage.removeItem(GLOBAL_SESSION_KEY); // nothing is remembered across tabs
     setActiveDatabase('shiftline');
     syncPresenceState();
   }, [session, syncPresenceState]);

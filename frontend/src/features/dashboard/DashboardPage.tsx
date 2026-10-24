@@ -25,7 +25,6 @@ type ChartMode = 'type' | 'shift' | 'status' | 'line';
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-const POOL_LEAD_LINE: Record<StaffPool, string> = { L4_L6: 'line4', L5: 'line5' };
 const POOL_TITLE: Record<StaffPool, string> = { L4_L6: 'Line 4 & 6 Combined Pool', L5: 'Line 5 Pool' };
 const SHIFT_TIMING: Record<ShiftFamily, string> = { M: '06:00–15:00', E: '14:00–23:00', N: '22:00–07:00' };
 const SHIFT_COLOR: Record<ShiftFamily, string> = { M: 'var(--sh-m)', E: 'var(--sh-e)', N: 'var(--sh-n)' };
@@ -43,7 +42,7 @@ interface Cell {
 const EMPTY_CELL: Cell = { onDuty: 0, demand: 0, pm: 0, cm: 0, acs: 0, orders: 0 };
 
 export function DashboardPage({ onOpenPlanner, onOpenWorkOrders }: Props) {
-  const { workOrders, allEmployees, settings, workload, staffForShift, codesByLine } = useStore();
+  const { workOrders, workOrdersReady, allEmployees, settings, workload, staffForShift, codesByLine } = useStore();
   const { activeYear: year, activeMonth: month } = settings;
   const nDays = new Date(year, month, 0).getDate();
   const monthPrefix = `${year}-${String(month).padStart(2, '0')}-`;
@@ -104,7 +103,7 @@ export function DashboardPage({ onOpenPlanner, onOpenWorkOrders }: Props) {
       for (const pool of ['L4_L6', 'L5'] as StaffPool[]) {
         const row = {} as Record<ShiftFamily, Cell>;
         for (const shift of SHIFT_FAMILIES) {
-          const onDuty = staffForShift(POOL_LEAD_LINE[pool], iso, shift).length;
+          const onDuty = staffForShift(POOL_LINES[pool].ids[0], iso, shift).length;
           const b = balanceByKey.get(`${pool}|${iso}|${shift}`);
           row[shift] = b
             ? { onDuty, demand: b.demand, pm: b.pm, cm: b.cm, acs: b.acs, orders: b.orders }
@@ -275,7 +274,32 @@ export function DashboardPage({ onOpenPlanner, onOpenWorkOrders }: Props) {
   const sel = activeSlice !== null ? pie.arcs[activeSlice] : null;
 
   const dateLabel = (d: number) => `${d} ${MONTHS[month - 1]} ${year}`;
-  const noData = workOrders.length === 0 && rosterPeople === 0;
+  const noData = workOrdersReady && workOrders.length === 0 && rosterPeople === 0;
+
+  /** Hover text for one day: its work orders, crew, roster and what each shift looks like. */
+  const dayTip = (day: number) => {
+    const st = dayStats[day - 1];
+    const dow = WEEKDAYS[new Date(year, month - 1, day).getDay()];
+    const lines = SHIFT_FAMILIES.map((sh) => {
+      let need = 0, have = 0;
+      for (const pool of pools) {
+        need += grid[day - 1][pool][sh].demand;
+        have += grid[day - 1][pool][sh].onDuty;
+      }
+      return `${SHIFT_LABEL[sh]}: need ${need}, have ${have}${need > have ? ` (short ${need - have})` : ''}`;
+    });
+    return [
+      `${dow} ${dateLabel(day)}`,
+      st.orders
+        ? `${st.orders} work order${st.orders === 1 ? '' : 's'} start this day and need ${st.demand} crew. The Duty Roster has ${st.capacity} people working.`
+        : `No work orders start this day. The Duty Roster has ${st.capacity} people working.`,
+      lines.join('  ·  '),
+      st.shortBy > 0
+        ? `Short by ${st.shortBy} in total — open the Duty Roster and move people onto the short shift.`
+        : st.orders ? 'Every shift has enough people.' : '',
+      'Click to make this the planning date.',
+    ].join('\n');
+  };
 
   const shiftMinimum = (pool: StaffPool, shift: ShiftFamily) =>
     POOL_LINES[pool].ids.reduce(
@@ -331,18 +355,21 @@ export function DashboardPage({ onOpenPlanner, onOpenWorkOrders }: Props) {
             value={poolFilter}
             onChange={setPoolFilter}
             options={[
-              { value: 'all', label: 'All lines' },
-              { value: 'L46', label: 'Line 4 & 6' },
-              { value: 'L5', label: 'Line 5' },
+              { value: 'all', label: 'All lines', tip: 'All lines\nLine 4 & 6 and Line 5 together. Every card, graph and box on this page follows this filter.' },
+              { value: 'L46', label: 'Line 4 & 6', tip: 'Line 4 & 6\nOne shared team: Line 4 and Line 6 work orders are covered by the same people on the Duty Roster.' },
+              { value: 'L5', label: 'Line 5', tip: 'Line 5\nLine 5 has its own team. Only Line 5 work orders and Line 5 people are counted.' },
             ]}
           />
 
           {/* Planning date — accent coloured so it reads as the main control */}
-          <div className="flex items-center gap-1 rounded-lg border border-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] p-0.5">
+          <div
+            data-tip={'Planning date\nThe day this whole page is about. The status line, the four cards and the Morning / Evening / Night boxes show this day, and the graph starts from it.\nUse ‹ › to move one day, pick a date from the list, or press Today to jump back to today.'}
+            className="flex items-center gap-1 rounded-lg border border-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] p-0.5"
+          >
             <span className="pl-2.5 pr-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--accent)]">
               Planning date
             </span>
-            <Button size="sm" onClick={() => setSelectedDay((d) => Math.max(1, d - 1))} className="px-2 text-[var(--accent)]" title="Previous day">
+            <Button size="sm" onClick={() => setSelectedDay((d) => Math.max(1, d - 1))} className="px-2 text-[var(--accent)]" data-tip={'Previous day\nMove the planning date back one day.'}>
               ‹
             </Button>
             <Select
@@ -356,11 +383,11 @@ export function DashboardPage({ onOpenPlanner, onOpenWorkOrders }: Props) {
                 </option>
               ))}
             </Select>
-            <Button size="sm" onClick={() => setSelectedDay((d) => Math.min(nDays, d + 1))} className="px-2 text-[var(--accent)]" title="Next day">
+            <Button size="sm" onClick={() => setSelectedDay((d) => Math.min(nDays, d + 1))} className="px-2 text-[var(--accent)]" data-tip={'Next day\nMove the planning date forward one day.'}>
               ›
             </Button>
             {todayDay !== null && selectedDay !== todayDay && (
-              <Button variant="primary" size="sm" onClick={() => setSelectedDay(todayDay)}>
+              <Button variant="primary" size="sm" data-tip={'Today\nJump the planning date back to today.'} onClick={() => setSelectedDay(todayDay)}>
                 Today
               </Button>
             )}
@@ -370,7 +397,7 @@ export function DashboardPage({ onOpenPlanner, onOpenWorkOrders }: Props) {
 
       {/* ===== How to read this ===== */}
       <details className="group rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3">
-        <summary className="cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden text-[13px] font-medium text-ink flex items-center justify-between gap-3">
+        <summary data-tip={'How to read this dashboard\nOpens a short guide to the status line, the cards and both graphs.'} className="cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden text-[13px] font-medium text-ink flex items-center justify-between gap-3">
           <span className="flex items-center gap-2">
             <span className="text-ink-3 text-[10px] transition-transform group-open:rotate-90">▶</span>
             How to read this dashboard
@@ -412,7 +439,12 @@ export function DashboardPage({ onOpenPlanner, onOpenWorkOrders }: Props) {
       )}
 
       {/* ===== Status line ===== */}
-      <div className={cx('rounded-xl border px-4 py-3 text-[13px] font-medium', STATUS_STYLE[status.tone])}>{status.text}</div>
+      <div
+        data-tip={'Status for the planning date\nGreen: every work order that day has enough people on its shift. Red: at least one shift has fewer people on the Duty Roster than its work orders need. Grey: no work orders that day.'}
+        className={cx('rounded-xl border px-4 py-3 text-[13px] font-medium', STATUS_STYLE[status.tone])}
+      >
+        {status.text}
+      </div>
 
       {/* ===== KPI cards ===== */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -420,24 +452,28 @@ export function DashboardPage({ onOpenPlanner, onOpenWorkOrders }: Props) {
           label={`Work orders in ${MONTHS[month - 1]}`}
           value={monthAllocs.length}
           note={`${typeCounts.PM} preventive · ${typeCounts.CM} corrective · ${typeCounts.ACS} inspection`}
+          tip={`Work orders in ${MONTHS[month - 1]}\nEvery work order whose Scheduled Start falls in this month, for the lines selected at the top. Preventive = planned maintenance (PM), corrective = repairs (CM), inspection = checks (ACS).\nWork orders with no valid date or line cannot be placed on a day, so they are left out.`}
         />
         <Kpi
           label={`Work orders on ${dateLabel(selectedDay)}`}
           value={dayAllocs.length}
           note={dayAllocs.length ? `${dayStaffed} fully staffed · ${dayDone} completed` : 'Nothing scheduled'}
           tone={dayAllocs.length && dayStaffed < dayAllocs.length ? 'bad' : undefined}
+          tip={`Work orders on ${dateLabel(selectedDay)}\nHow many work orders start on the planning date. "Fully staffed" means every one of them has all the people it needs on its shift, taken from the Duty Roster. "Completed" are ones the Excel file already marks as done.`}
         />
         <Kpi
           label="People working that day"
           value={dutyToday}
           note={`${today?.demand ?? 0} needed by work orders · ${rosterPeople} on roster`}
           tone={today && today.shortBy > 0 ? 'bad' : undefined}
+          tip={'People working that day\nPeople the Duty Roster has on a Morning, Evening or Night shift on the planning date. Compare with "needed by work orders", the crew those jobs call for.\n"On roster" is everyone in the team, including people on rest days or leave.'}
         />
         <Kpi
           label="Crew short this month"
           value={monthShortBy}
           note={monthShortDays ? `Across ${monthShortDays} day${monthShortDays === 1 ? '' : 's'}` : 'Every day is covered'}
           tone={monthShortBy ? 'bad' : 'good'}
+          tip={'Crew short this month\nFor every day and shift, how many more people the work orders need than the Duty Roster has — all added up. 0 means every day is covered.\nIt counts people, not work orders. "Across N days" is how many days have a gap.'}
         />
       </div>
 
@@ -460,34 +496,38 @@ export function DashboardPage({ onOpenPlanner, onOpenWorkOrders }: Props) {
                 value={chartView}
                 onChange={setChartView}
                 options={[
-                  { value: 'orders', label: 'Work orders' },
-                  { value: 'crew', label: 'Needed vs available' },
+                  { value: 'orders', label: 'Work orders', tip: 'Work orders view\nOne bar per day. The number on top is how many work orders start that day. Amber bars have a shift without enough people.' },
+                  { value: 'crew', label: 'Needed vs available', tip: 'Needed vs available view\nBar = crew the work orders need that day. Green line = people the Duty Roster has working. A bar above the line (red) means a shortage.' },
                 ]}
               />
               <Segmented
                 value={horizon}
                 onChange={setHorizon}
                 options={[
-                  { value: 'today', label: 'Today' },
-                  { value: '7days', label: 'Next 7 Days' },
-                  { value: 'month', label: '30-Day Month' },
+                  { value: 'today', label: 'Today', tip: 'Today\nShow only the planning date.' },
+                  { value: '7days', label: 'Next 7 Days', tip: 'Next 7 days\nThe planning date and the six days after it.' },
+                  { value: 'month', label: '30-Day Month', tip: 'Whole month\nEvery day of the month, one bar each.' },
                 ]}
               />
               </div>
             </div>
 
             <div className="grid grid-cols-3 gap-3 mb-4">
-              <Stat label="Period volume" value={`${windowOrders} orders`} />
-              <Stat label="Crew shifts needed" value={String(windowDemand)} />
+              <Stat label="Period volume" value={`${windowOrders} orders`} tip={'Period volume\nTotal work orders on the days shown in the graph — whatever Today, Next 7 days or Month is selected.'} />
+              <Stat label="Crew shifts needed" value={String(windowDemand)} tip={'Crew shifts needed\nTotal crew those work orders call for, added up over the days shown. Two people on one shift counts as 2.'} />
               <Stat
                 label="Status"
                 value={windowShort ? `${windowShort} day${windowShort === 1 ? '' : 's'} short` : 'Capacity safe'}
                 tone={windowShort ? 'bad' : 'good'}
+                tip={'Status\nHow many of the days shown have a shift short of people. "Capacity safe" means no day in the graph is short.'}
               />
             </div>
 
             {/* Details of the hovered day — kept outside the scrolling chart so it is never cut off */}
-            <div className="mb-3 rounded-lg border border-[var(--line)] bg-[var(--surface-2)] px-4 py-3">
+            <div
+              data-tip={'Day details\nShows the day under your pointer, or the planning date when you are not pointing at a bar. "Need" is the crew that day\'s work orders call for; "have" is the people the Duty Roster has on that shift.'}
+              className="mb-3 rounded-lg border border-[var(--line)] bg-[var(--surface-2)] px-4 py-3"
+            >
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="text-[13px] font-semibold text-ink">
                   {detail.dow}, {dateLabel(detailDay)}
@@ -513,7 +553,11 @@ export function DashboardPage({ onOpenPlanner, onOpenWorkOrders }: Props) {
                 {detail.shifts.map((x) => {
                   const short = x.need > x.have;
                   return (
-                    <div key={x.sh} className="rounded-md border border-[var(--line)] bg-[var(--surface)] px-2.5 py-1.5">
+                    <div
+                      key={x.sh}
+                      data-tip={`${SHIFT_LABEL[x.sh]} shift (${SHIFT_TIMING[x.sh]})\nNeed ${x.need}: crew the ${x.orders} work order${x.orders === 1 ? '' : 's'} on this shift call for. Have ${x.have}: people the Duty Roster has on ${SHIFT_LABEL[x.sh]} that day.\n${short ? `Short by ${x.need - x.have} — move people onto this shift in the Duty Roster.` : 'This shift is covered.'}`}
+                      className="rounded-md border border-[var(--line)] bg-[var(--surface)] px-2.5 py-1.5"
+                    >
                       <div className="flex items-center gap-1.5 text-[11px] font-semibold text-ink">
                         <span className="w-2 h-2 rounded-full" style={{ background: SHIFT_COLOR[x.sh] }} />
                         {SHIFT_LABEL[x.sh]}
@@ -536,6 +580,7 @@ export function DashboardPage({ onOpenPlanner, onOpenWorkOrders }: Props) {
                 return (
                   <div
                     key={pt.day}
+                    data-tip={dayTip(pt.day)}
                     onClick={() => setSelectedDay(pt.day)}
                     onMouseEnter={() => setHoverDay(pt.day)}
                     onMouseLeave={() => setHoverDay(null)}
@@ -568,9 +613,9 @@ export function DashboardPage({ onOpenPlanner, onOpenWorkOrders }: Props) {
               })}
             </div>
             <div className="flex flex-wrap items-center gap-4 mt-3 text-[11px] text-ink-2">
-              <span className="flex items-center gap-1.5"><i className="w-3 h-2.5 rounded-sm inline-block bg-gradient-to-t from-blue-600 to-cyan-400" />Selected date</span>
-              <span className="flex items-center gap-1.5"><i className="w-3 h-2.5 rounded-sm inline-block bg-gradient-to-t from-amber-600 to-amber-400" />A shift is short that day</span>
-              <span className="flex items-center gap-1.5"><i className="w-3 h-2.5 rounded-sm inline-block bg-slate-400" />Work orders (number on top)</span>
+              <span data-tip={'Selected date\nThe blue bar is the planning date.'} className="flex items-center gap-1.5"><i className="w-3 h-2.5 rounded-sm inline-block bg-gradient-to-t from-blue-600 to-cyan-400" />Selected date</span>
+              <span data-tip={'A shift is short that day\nAmber: at least one shift (Morning, Evening or Night) has fewer people on the roster than its work orders need.'} className="flex items-center gap-1.5"><i className="w-3 h-2.5 rounded-sm inline-block bg-gradient-to-t from-amber-600 to-amber-400" />A shift is short that day</span>
+              <span data-tip={'Work orders\nGrey bars are days that are fully covered. The number on top is how many work orders start that day; a taller bar is a busier day.'} className="flex items-center gap-1.5"><i className="w-3 h-2.5 rounded-sm inline-block bg-slate-400" />Work orders (number on top)</span>
             </div>
               </>
             ) : (
@@ -582,6 +627,7 @@ export function DashboardPage({ onOpenPlanner, onOpenWorkOrders }: Props) {
                       <button
                         key={pt.day}
                         type="button"
+                        data-tip={dayTip(pt.day)}
                         onClick={() => setSelectedDay(pt.day)}
                         onMouseEnter={() => setHoverDay(pt.day)}
                         onMouseLeave={() => setHoverDay(null)}
@@ -613,9 +659,9 @@ export function DashboardPage({ onOpenPlanner, onOpenWorkOrders }: Props) {
                   })}
                 </div>
                 <div className="flex flex-wrap items-center gap-4 mt-3 text-[11px] text-ink-2">
-                  <span className="flex items-center gap-1.5"><i className="w-3 h-2.5 rounded-sm inline-block bg-[var(--ink-3)] opacity-60" />People needed</span>
-                  <span className="flex items-center gap-1.5"><i className="w-3 h-2.5 rounded-sm inline-block bg-[var(--danger)]" />A shift is short</span>
-                  <span className="flex items-center gap-1.5"><i className="w-4 h-0.5 inline-block bg-[var(--ok)]" />People available</span>
+                  <span data-tip={'People needed\nThe bar: crew the day\'s work orders call for.'} className="flex items-center gap-1.5"><i className="w-3 h-2.5 rounded-sm inline-block bg-[var(--ink-3)] opacity-60" />People needed</span>
+                  <span data-tip={'A shift is short\nRed bar: on that day, at least one shift has fewer people on the roster than its work orders need.'} className="flex items-center gap-1.5"><i className="w-3 h-2.5 rounded-sm inline-block bg-[var(--danger)]" />A shift is short</span>
+                  <span data-tip={'People available\nThe green line: people the Duty Roster has working that day. A bar reaching above the line means a shortage.'} className="flex items-center gap-1.5"><i className="w-4 h-0.5 inline-block bg-[var(--ok)]" />People available</span>
                 </div>
               </>
             )}
@@ -623,7 +669,7 @@ export function DashboardPage({ onOpenPlanner, onOpenWorkOrders }: Props) {
 
           <div className="flex items-center justify-between pt-4 border-t border-[var(--line)] text-[12px] text-ink-3 mt-4">
             <span>Point at a bar for details · click to pick the date</span>
-            <Button size="sm" variant="outline" onClick={onOpenWorkOrders}>Open Maintenance Workorders →</Button>
+            <Button size="sm" variant="outline" onClick={onOpenWorkOrders} data-tip={'Open Maintenance Workorders\nSee every work order, who is assigned to it, and the full list of shortfalls.'}>Open Maintenance Workorders →</Button>
           </div>
         </section>
 
@@ -641,10 +687,10 @@ export function DashboardPage({ onOpenPlanner, onOpenWorkOrders }: Props) {
                 setActiveSlice(null);
               }}
               options={[
-                { value: 'type', label: 'Type' },
-                { value: 'shift', label: 'Shift' },
-                { value: 'line', label: 'Line' },
-                { value: 'status', label: 'Staffing' },
+                { value: 'type', label: 'Type', tip: 'By type\nSplits this month\'s work orders into preventive (PM), corrective (CM) and inspection (ACS).' },
+                { value: 'shift', label: 'Shift', tip: 'By shift\nWhich shift each work order is planned on: Morning, Evening or Night.' },
+                { value: 'line', label: 'Line', tip: 'By line\nHow many work orders belong to Line 4, Line 5 and Line 6.' },
+                { value: 'status', label: 'Staffing', tip: 'By staffing\nWhether each work order has enough people on its shift: fully staffed, short of crew, nobody on shift, or no roster.' },
               ]}
             />
           </div>
@@ -663,6 +709,7 @@ export function DashboardPage({ onOpenPlanner, onOpenWorkOrders }: Props) {
                         <path
                           key={arc.key}
                           d={arc.d}
+                          data-tip={`${arc.label} — ${arc.count} work orders (${arc.percent}%)\n${arc.hint}. These work orders need ${arc.crew} crew shifts in total.\nThe full circle is all ${pie.total} work orders in ${MONTHS[month - 1]}.`}
                           fill={arc.color}
                           className="transition-all duration-200 cursor-pointer"
                           style={{
@@ -676,7 +723,10 @@ export function DashboardPage({ onOpenPlanner, onOpenWorkOrders }: Props) {
                       ),
                   )}
                 </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
+                <div
+                  data-tip={'Centre of the chart\nTotal work orders this month and the crew shifts they need — or the figures of the slice you point at.'}
+                  className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none"
+                >
                   <span className="text-[44px] font-semibold text-ink tabular-nums leading-none">{sel ? sel.count : pie.total}</span>
                   <span className="text-[12px] font-medium text-ink-2 mt-1.5 max-w-[120px] truncate">
                     {sel ? `${sel.label} · ${sel.percent}%` : 'work orders'}
@@ -691,6 +741,7 @@ export function DashboardPage({ onOpenPlanner, onOpenWorkOrders }: Props) {
                 {pie.arcs.map((arc) => (
                   <div
                     key={arc.key}
+                    data-tip={`${arc.label}\n${arc.count} work orders (${arc.percent}% of the month) needing ${arc.crew} crew shifts. ${arc.hint}.\nPoint here to highlight its slice in the chart.`}
                     onMouseEnter={() => setActiveSlice(arc.count ? arc.index : null)}
                     onMouseLeave={() => setActiveSlice(null)}
                     className={cx(
@@ -737,7 +788,7 @@ export function DashboardPage({ onOpenPlanner, onOpenWorkOrders }: Props) {
             <h2 className="text-[15px] font-semibold text-ink">Shifts on {dateLabel(selectedDay)}</h2>
             <p className="text-[12px] text-ink-2 mt-0.5">People on each shift against the crew its work orders need</p>
           </div>
-          <Button variant="primary" onClick={onOpenPlanner} className="self-start sm:self-auto">
+          <Button variant="primary" onClick={onOpenPlanner} className="self-start sm:self-auto" data-tip={'Open Duty Roster\nGo to the planner to move people between shifts. This page updates as soon as you do.'}>
             Open Duty Roster →
           </Button>
         </div>
@@ -748,7 +799,10 @@ export function DashboardPage({ onOpenPlanner, onOpenWorkOrders }: Props) {
             const total = SHIFT_FAMILIES.reduce((s, sh) => s + row[sh].onDuty, 0);
             return (
               <div key={pool} className="rounded-lg border border-[var(--line)] bg-[var(--surface-2)] p-4">
-                <div className="flex items-center justify-between pb-3 border-b border-[var(--line)]">
+                <div
+                  data-tip={`${POOL_TITLE[pool]}\n"Working" is people the Duty Roster has on a Morning, Evening or Night shift on ${dateLabel(selectedDay)}. "On roster" is everyone in this team, including rest days and leave.`}
+                  className="flex items-center justify-between pb-3 border-b border-[var(--line)]"
+                >
                   <span className="text-[13px] font-semibold text-ink">{POOL_TITLE[pool]}</span>
                   <span className="text-[12px] text-ink-2 tabular-nums">{total} working · {peopleByPool[pool]} on roster</span>
                 </div>
@@ -762,7 +816,11 @@ export function DashboardPage({ onOpenPlanner, onOpenWorkOrders }: Props) {
                     const fill = c.onDuty ? Math.min(100, (c.demand / c.onDuty) * 100) : c.demand ? 100 : 0;
                     const tone: Tone = buffer < 0 ? 'bad' : belowMin ? 'warn' : c.demand ? 'good' : 'neutral';
                     return (
-                      <div key={shift} className="rounded-lg bg-[var(--surface)] border border-[var(--line)] p-3">
+                      <div
+                        key={shift}
+                        data-tip={`${SHIFT_LABEL[shift]} shift · ${POOL_TITLE[pool]}\n${c.onDuty} people work this shift on ${dateLabel(selectedDay)}; its ${c.orders} work order${c.orders === 1 ? '' : 's'} need ${c.demand} crew.\n${buffer < 0 ? `Short by ${-buffer} — move people onto ${SHIFT_LABEL[shift]} in the Duty Roster.` : belowMin ? `Fewer people than the minimum of ${min} set in Setup.` : c.demand ? `${buffer} spare after the work orders are staffed.` : 'No work orders on this shift.'}\nThe bar shows how much of the people on shift the work orders use up; red means they need more than there are.`}
+                        className="rounded-lg bg-[var(--surface)] border border-[var(--line)] p-3"
+                      >
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2">
                             <span className="w-2.5 h-2.5 rounded-full" style={{ background: SHIFT_COLOR[shift] }} />
@@ -814,6 +872,7 @@ export function DashboardPage({ onOpenPlanner, onOpenWorkOrders }: Props) {
               <button
                 key={`${s.day}-${s.pool}-${s.shift}`}
                 type="button"
+                data-tip={`${dateLabel(s.day)} · ${SHIFT_LABEL[s.shift]} · ${POOL_LINES[s.pool].label}\nWork orders that day need ${s.need} people on this shift but the Duty Roster has only ${s.have}. Click to make it the planning date, then fix it in the Duty Roster.`}
                 onClick={() => setSelectedDay(s.day)}
                 className="text-left px-3 py-2.5 rounded-lg border border-[var(--line)] bg-[var(--surface-2)] hover:border-[var(--danger)] transition-colors flex items-center justify-between gap-3"
               >
@@ -857,9 +916,10 @@ const STATUS_STYLE: Record<Tone, string> = {
   neutral: 'bg-[var(--surface)] text-ink-2 border-[var(--line)]',
 };
 
-function Stat({ label, value, tone }: { label: string; value: string; tone?: Tone }) {
+function Stat({ label, value, tone, tip }: { label: string; value: string; tone?: Tone; tip?: string }) {
   return (
     <div
+      data-tip={tip}
       className={cx(
         'p-3 rounded-lg border',
         tone ? `${STATUS_STYLE[tone]}` : 'bg-[var(--surface-2)] border-[var(--line)]',
@@ -871,9 +931,9 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: Ton
   );
 }
 
-function Kpi({ label, value, note, tone }: { label: string; value: number; note: string; tone?: Tone }) {
+function Kpi({ label, value, note, tone, tip }: { label: string; value: number; note: string; tone?: Tone; tip?: string }) {
   return (
-    <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4">
+    <div data-tip={tip} className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4">
       <span className="text-[12px] font-medium text-ink-2 block truncate">{label}</span>
       <span
         className={cx(

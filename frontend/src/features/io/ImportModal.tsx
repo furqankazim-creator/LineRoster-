@@ -278,7 +278,7 @@ export function ImportModal({
    * the code's first letter(s) so the code shows up with the right colour
    * straight away — the user can fine-tune timings in Setup → Shift codes.
    */
-  const guessShiftCode = (id: string, existingCount: number) => {
+  const guessShiftCode = (id: string, existingCount: number, legendLabel?: string) => {
     const up = id.toUpperCase();
     type Tone = 'morning' | 'evening' | 'night' | 'general' | 'project' | 'leave' | 'off';
 
@@ -297,6 +297,27 @@ export function ImportModal({
       LV:   { label: 'Leave',             timing: '',              tone: 'leave',    rotates: false, isStatus: true },
       FLRT: { label: 'FLRT',             timing: '',              tone: 'leave',    rotates: false, isStatus: true },
     };
+
+    // The sheet's own key wins over guesses: leave / sick / training are statuses, not shifts.
+    if (legendLabel) {
+      const label = legendLabel.trim();
+      const isStatus = /leave|sick|training|\bofficial\b|holiday/i.test(label);
+      const base = KNOWN_LABELS[up];
+      const tone: Tone = isStatus
+        ? 'leave'
+        : base?.tone ?? (/^M/.test(up) ? 'morning' : /^E/.test(up) ? 'evening' : /^N/.test(up) ? 'night' : /^P/.test(up) ? 'project' : 'general');
+      return {
+        id: up,
+        label,
+        timing: isStatus ? '' : base?.timing ?? '',
+        tone,
+        minHeadcount: 0,
+        countsAsEngineer: !isStatus,
+        rotates: false,
+        ...(isStatus ? { isStatus: true } : {}),
+        order: 500 + existingCount,
+      };
+    }
 
     const defaults = KNOWN_LABELS[up];
     if (defaults) {
@@ -326,8 +347,10 @@ export function ImportModal({
 
   const commit = async () => {
     if (!result) return;
-    const { toRecords } = await loadImporter();
+    const { toRecords, overridesForImport } = await loadImporter();
     const { employees, leave } = toRecords(result, targetLine, () => newId('e'));
+    // Pin every cell the inferred rules can't reproduce so the grid matches the sheet.
+    const overrides = overridesForImport(result, employees, leave, targetLine);
 
     // ---- collect every shift code used by the imported employees ----------
     const usedCodes = new Set<string>();
@@ -344,7 +367,7 @@ export function ImportModal({
     );
     const toCreate = [...usedCodes]
       .filter((id) => !lineCodeIds.has(id))
-      .map((id, i) => ({ ...guessShiftCode(id, lineCodeIds.size + i), scope: targetLine }));
+      .map((id, i) => ({ ...guessShiftCode(id, lineCodeIds.size + i, result.legend?.[id]), scope: targetLine }));
 
     // ---- write everything in one transaction ------------------------------
     await db.transaction(
@@ -363,8 +386,18 @@ export function ImportModal({
         }
         await db.employees.bulkPut(employees);
         await db.leave.bulkPut(leave);
-        // Drop the cached grid so it rebuilds from the imported rules.
-        await db.rosters.delete(rid);
+        // Store the sheet's exact cells as overrides; the grid rebuilds from rules + these.
+        const prior = replace ? undefined : await db.rosters.get(rid);
+        await db.rosters.put({
+          id: rid,
+          lineId: targetLine,
+          year: result.year,
+          month: result.month,
+          cells: {},
+          overrides: { ...(prior?.overrides ?? {}), ...overrides },
+          extraHours: prior?.extraHours ?? {},
+          updatedAt: Date.now(),
+        });
         // Remember the source file's shape so Export can hand it back the same way.
         await db.layouts.put({ rosterId: rid, layout: result.layout });
       },

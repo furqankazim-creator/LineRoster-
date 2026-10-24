@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { StoreProvider, useStore } from '@/app/store';
 import { switchTheme } from '@/app/themeTransition';
 import { AlstomLogo } from '@/components/AlstomLogo';
+import { TipLayer } from '@/components/TipLayer';
 import { Button, ToastHost, cx } from '@/components/ui';
 import { THEME_STORAGE_KEY, getStoredTheme, saveStoredTheme } from '@/data/db';
 import { monthLabel } from '@/domain/calendar';
@@ -23,13 +24,22 @@ import { WorkOrdersPage } from '@/features/workorders/WorkOrdersPage';
 type Page = 'dashboard' | 'planner' | 'workorders' | 'people' | 'setup';
 
 const APP_HASH = '#/app';
+const PAGES: Page[] = ['dashboard', 'planner', 'workorders', 'people', 'setup'];
 
-/** The planner lives at #/app; anything else shows the landing page. */
+/** The app lives at #/app (Dashboard) and #/app/<tab>; anything else shows the landing page. */
+const isAppHash = (hash: string) => hash === APP_HASH || hash.startsWith(`${APP_HASH}/`);
+
+/** Which tab the address names, so a refresh stays on it instead of falling back to Dashboard. */
+function pageFromHash(): Page {
+  const name = window.location.hash.slice(APP_HASH.length + 1) as Page;
+  return PAGES.includes(name) ? name : 'dashboard';
+}
+
 function useInApp(): [boolean, (open: boolean) => void] {
-  const [inApp, setInApp] = useState(() => window.location.hash === APP_HASH);
+  const [inApp, setInApp] = useState(() => isAppHash(window.location.hash));
 
   useEffect(() => {
-    const onHash = () => setInApp(window.location.hash === APP_HASH);
+    const onHash = () => setInApp(isAppHash(window.location.hash));
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
@@ -88,7 +98,18 @@ function AppContent({ onHome }: { onHome: () => void }) {
 function Shell({ onHome }: { onHome: () => void }) {
   const { ready, settings, setTheme, lines } = useStore();
   const { session, logout } = useAuth();
-  const [page, setPage] = useState<Page>('dashboard');
+  const [page, setPageState] = useState<Page>(pageFromHash);
+  // The tab lives in the address (#/app/planner …): refresh and the back button keep it
+  const setPage = (p: Page) => {
+    window.location.hash = p === 'dashboard' ? APP_HASH : `${APP_HASH}/${p}`;
+  };
+  useEffect(() => {
+    const onHash = () => {
+      if (isAppHash(window.location.hash)) setPageState(pageFromHash());
+    };
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
   const [shareOpen, setShareOpen] = useState(false);
 
   useEffect(() => {
@@ -115,18 +136,18 @@ function Shell({ onHome }: { onHome: () => void }) {
   return (
     <div className="flex h-full flex-col">
       <header
-        className="no-print relative mx-2 sm:mx-4 xl:mx-6 my-2 sm:my-3 shrink-0 rounded-2xl border border-[var(--line-strong)] bg-[var(--surface)] px-3 sm:px-5 xl:px-7 z-50 shadow-sm"
+        className="no-print relative mx-2 sm:mx-4 xl:mx-6 my-2 sm:my-3 shrink-0 rounded-2xl border border-[var(--line-strong)] bg-[var(--surface)] px-3 sm:px-5 xl:px-5 2xl:px-7 z-50 shadow-sm"
         style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
       >
         {/* Row 1: brand · (desktop: tabs) · actions */}
         <div className="flex h-14 xl:h-16 items-center justify-between gap-2 sm:gap-4">
-          <div className="flex min-w-0 items-center gap-3 xl:gap-6">
+          <div className="flex min-w-0 items-center gap-3 xl:gap-4 2xl:gap-6">
             <button
               type="button"
               onClick={onHome}
-              title="Back to home"
+              data-tip={'Back to home\nGo to the ShiftLine landing page. You stay signed in on this tab.'}
               aria-label="Back to home page"
-              className="flex min-w-0 items-center gap-2 sm:gap-3 text-left group py-0.5"
+              className="flex min-w-0 shrink items-center gap-2 sm:gap-3 text-left group py-0.5"
             >
               <span className="sm:hidden">
                 <AlstomLogo height={17} className="group-hover:opacity-85 transition-opacity" />
@@ -137,15 +158,17 @@ function Shell({ onHome }: { onHome: () => void }) {
               <span className="h-6 sm:h-8 w-px shrink-0 bg-[var(--line)]" aria-hidden />
               <div className="flex min-w-0 flex-col leading-tight">
                 <Wordmark className="text-[15px] sm:text-[17.5px] font-black group-hover:text-[var(--accent)] transition-colors" />
-                <span className="hidden md:block truncate text-[12px] font-bold text-ink-3">
-                  Riyadh SLV Maintenance <span className="text-ink-3">·</span> {line?.name} <span className="text-ink-3">·</span> {monthLabel(settings.activeYear, settings.activeMonth)}
+                <span className="hidden md:block truncate text-[11.5px] xl:text-[12px] font-bold text-ink-3">
+                  {/* Full subtitle only where there is room: tablets-landscape and ≥1536px */}
+                  <span className="hidden lg:inline xl:hidden 2xl:inline">Riyadh SLV Maintenance <span className="text-ink-3">·</span> </span>
+                  {line?.name} <span className="text-ink-3">·</span> {monthLabel(settings.activeYear, settings.activeMonth)}
                 </span>
               </div>
             </button>
 
             {/* Desktop: tabs inline */}
             <span className="hidden xl:block h-7 w-px bg-[var(--line)]" aria-hidden />
-            <MainNav page={page} setPage={setPage} className="hidden xl:flex" />
+            <MainNav page={page} setPage={setPage} className="hidden xl:flex shrink-0" />
           </div>
 
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2.5 xl:gap-3">
@@ -163,7 +186,7 @@ function Shell({ onHome }: { onHome: () => void }) {
                 variant="outline"
                 onClick={() => setShareOpen(true)}
                 className="flex items-center gap-1.5 text-xs font-bold h-8 sm:h-9 px-2 sm:px-3.5 text-ink rounded-xl border-[var(--line-strong)] hover:border-[var(--line)] shadow-xs"
-                title="Share Password-Protected Link & Security"
+                data-tip={'Share Link\nCreate a password-protected link so a colleague can open this roster, and manage who has access and what they can do.'}
                 aria-label="Share link"
               >
                 <span>🔗</span>
@@ -188,8 +211,11 @@ function Shell({ onHome }: { onHome: () => void }) {
               </div>
               <button
                 type="button"
-                onClick={logout}
-                title={`Signed in as ${session?.name ?? 'User'} — Lock Screen / Sign Out`}
+                onClick={() => {
+                  logout();
+                  onHome(); // signing out lands on the landing page
+                }}
+                data-tip={`Sign out\nSigned in as ${session?.name ?? 'User'}. Ends your session and returns to the home page; the login is asked for again.`}
                 aria-label="Lock Screen / Sign Out"
                 className="grid h-8 w-8 sm:h-9 sm:w-9 place-items-center rounded-xl border border-[var(--line-strong)] bg-[var(--surface-2)] text-ink-2 hover:text-amber-400 hover:bg-[var(--surface-3)] transition-all shadow-xs"
               >
@@ -208,7 +234,7 @@ function Shell({ onHome }: { onHome: () => void }) {
                   setTheme(next);
                 });
               }}
-              title={settings.theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+              data-tip={settings.theme === 'dark' ? 'Light theme\nSwitch the whole app to the light colour scheme.' : 'Dark theme\nSwitch the whole app to the dark colour scheme.'}
               aria-label={settings.theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
               className="grid h-8 w-8 sm:h-9 sm:w-9 place-items-center overflow-hidden rounded-xl border border-[var(--line-strong)] bg-[var(--surface-2)] text-ink-2 hover:text-ink hover:bg-[var(--surface-3)] transition-all shadow-xs"
             >
@@ -243,10 +269,20 @@ function Shell({ onHome }: { onHome: () => void }) {
       {page === 'people' && <PeoplePage />}
       {page === 'setup' && <SetupPage />}
       <AssistantWidget />
+      {/* No hover explanations on the Duty Roster and Maintenance Workorders pages */}
+      <TipLayer pausedOutsideHeader={page === 'planner' || page === 'workorders'} />
       <ShareSecurityModal open={shareOpen} onClose={() => setShareOpen(false)} />
     </div>
   );
 }
+
+const NAV_TIPS: Record<Page, string> = {
+  dashboard: 'Dashboard\nA live overview: how many work orders each day, how many people are working, and where a shift is short.',
+  planner: 'Duty Roster\nThe monthly roster grid for each line: who works which shift every day. Edit it here and the work orders re-check themselves.',
+  workorders: 'Maintenance Workorders\nImport the work-order Excel file and see every job checked against the roster for its own day and shift.',
+  people: 'People\nEveryone on the line with their shift, rest days and rotation. Add people or change their rules here.',
+  setup: 'Setup\nLines, shift codes and colours, minimum headcounts, Excel import columns, and backup or restore.',
+};
 
 const NAV_ITEMS = [
   ['dashboard', 'Dashboard', <HomeIcon key="i" />, 'Board'],
@@ -282,12 +318,13 @@ function MainNav({
           <button
             key={key}
             onClick={() => setPage(key)}
+            data-tip={NAV_TIPS[key]}
             aria-current={active ? 'page' : undefined}
             className={cx(
               'flex items-center justify-center rounded-lg font-bold transition-all whitespace-nowrap',
               fill
                 ? 'flex-1 min-w-0 flex-col sm:flex-row gap-0.5 sm:gap-2 px-1 sm:px-3 py-1 sm:py-1.5 text-[11px] sm:text-[13px]'
-                : 'gap-2 px-4 py-1.5 text-[13.5px]',
+                : 'gap-1.5 2xl:gap-2 px-3 2xl:px-4 py-1.5 text-[13px] 2xl:text-[13.5px]',
               active
                 ? 'bg-[var(--surface)] text-ink shadow-sm border border-[var(--line-strong)]'
                 : 'border border-transparent text-ink-3 hover:text-ink hover:bg-[var(--surface-3)]/60',
@@ -302,7 +339,11 @@ function MainNav({
                   <span className="hidden sm:inline">{label}</span>
                 </>
               ) : (
-                label
+                <>
+                  {/* Laptops drop "Maintenance" so the tabs never crowd the brand */}
+                  <span className="2xl:hidden">{label.replace('Maintenance ', '')}</span>
+                  <span className="hidden 2xl:inline">{label}</span>
+                </>
               )}
             </span>
           </button>

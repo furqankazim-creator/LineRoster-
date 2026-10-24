@@ -105,7 +105,7 @@ export function Segmented<T extends string>({
   onChange,
 }: {
   value: T;
-  options: { value: T; label: ReactNode; title?: string }[];
+  options: { value: T; label: ReactNode; title?: string; tip?: string }[];
   onChange: (value: T) => void;
 }) {
   return (
@@ -113,7 +113,8 @@ export function Segmented<T extends string>({
       {options.map((o) => (
         <button
           key={o.value}
-          title={o.title}
+          title={o.tip ? undefined : o.title}
+          data-tip={o.tip}
           onClick={() => onChange(o.value)}
           className={cx(
             'relative px-3 h-7 rounded-md text-[12px] font-medium transition-colors',

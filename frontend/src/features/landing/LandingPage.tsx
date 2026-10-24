@@ -307,11 +307,11 @@ export function LandingPage({ onOpen }: { onOpen: () => void }) {
             </button>
             <button
               onClick={onOpen}
-              aria-label="Launch Roster Platform"
+              aria-label="Open ShiftLine"
               className="inline-flex items-center gap-2 px-3 min-[420px]:px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl text-sm font-extrabold text-white bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 shadow-lg shadow-indigo-500/25 border border-indigo-400/30 transition-all hover:scale-[1.02] active:scale-[0.98]"
             >
-              <span className="hidden sm:inline">Launch Roster Platform</span>
-              <span className="hidden min-[420px]:inline sm:hidden">Launch</span>
+              <span className="hidden sm:inline">Open ShiftLine</span>
+              <span className="hidden min-[420px]:inline sm:hidden">Open</span>
               <ArrowIcon />
             </button>
           </div>
@@ -332,14 +332,16 @@ export function LandingPage({ onOpen }: { onOpen: () => void }) {
                 <span className="absolute inset-0 rounded-full bg-blue-500 animate-ping opacity-75" />
                 <span className="relative w-2 h-2 rounded-full bg-blue-500" />
               </span>
-              <span>Line 5 / 4&amp;6 Monthly Roster + Preventive Maintenance Workorders</span>
+              <span>Line 4, 5 &amp; 6 Monthly Roster + Preventive Maintenance Workorders</span>
             </div>
           </SectionReveal>
 
           <SectionReveal delayIndex={1}>
-            <h1 className="mt-6 text-4xl sm:text-6xl lg:text-7xl font-black tracking-tight text-[var(--text-primary)] max-w-5xl mx-auto leading-[1.1]">
-              SLV Operational Roster Planning &amp;{' '}
-              <span className="bg-clip-text text-transparent" style={{ backgroundImage: 'var(--brand-gradient)' }}>
+            <h1 className="mt-6 text-center text-3xl min-[420px]:text-4xl sm:text-5xl xl:text-6xl font-black tracking-tight text-[var(--text-primary)] max-w-7xl mx-auto leading-[1.15]">
+              {/* White line, the "&" centred on its own line, then the blue line */}
+              <span className="block lg:whitespace-nowrap">SLV Operational Roster Planning</span>
+              <span className="block text-center bg-clip-text text-transparent bg-gradient-to-r from-amber-400 to-orange-500">&amp;</span>
+              <span className="block lg:whitespace-nowrap bg-clip-text text-transparent" style={{ backgroundImage: 'var(--brand-gradient)' }}>
                 Maintenance Work Scheduling System
               </span>
             </h1>
@@ -379,7 +381,7 @@ export function LandingPage({ onOpen }: { onOpen: () => void }) {
                 onClick={onOpen}
                 className="px-8 sm:px-10 py-4 sm:py-4.5 rounded-xl text-base sm:text-lg font-extrabold text-white bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 shadow-xl shadow-indigo-600/30 transition-all hover:scale-[1.03] active:scale-[0.98] inline-flex items-center gap-3 border border-indigo-400/30"
               >
-                <span>Launch Live Roster Platform</span>
+                <span>Open ShiftLine</span>
                 <ArrowIcon size={20} />
               </button>
             </div>
@@ -411,7 +413,7 @@ export function LandingPage({ onOpen }: { onOpen: () => void }) {
               </div>
             </div>
             <p className="mt-4 text-[13px] leading-relaxed text-[var(--text-secondary)] max-w-sm">
-              Signalling and communication roster planning for Line 5 / 4&amp;6 — shifts, rest rules, leave and
+              Signalling and communication roster planning for Line 4, 5 &amp; 6 — shifts, rest rules, leave and
               work-order manpower allocation in one place.
             </p>
           </div>
@@ -467,7 +469,7 @@ export function LandingPage({ onOpen }: { onOpen: () => void }) {
               onClick={onOpen}
               className="mt-4 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-extrabold text-white bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 shadow-lg shadow-indigo-500/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
             >
-              Launch Roster Platform
+              Open ShiftLine
               <ArrowIcon size={14} />
             </button>
           </div>
@@ -475,10 +477,10 @@ export function LandingPage({ onOpen }: { onOpen: () => void }) {
 
         <div className="border-t border-[var(--border-subtle)]">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex flex-col md:flex-row items-center justify-between gap-3 text-[11.5px] text-[var(--text-muted)] text-center md:text-left">
-            <span>&copy; {new Date().getFullYear()} ShiftLine · Signalling &amp; Communication Workforce Management System</span>
+            <span>ShiftLine · Signalling &amp; Communication Workforce Management System</span>
             <span className="flex items-center gap-2">
               <span className="w-1.5 h-1.5 rounded-full bg-[var(--alert-green)]" />
-              Local-first · Works offline · Data stays in your browser
+              Prepared by Arif Ali Khan
             </span>
           </div>
         </div>

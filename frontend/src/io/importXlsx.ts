@@ -1,7 +1,7 @@
 import XLSX from 'xlsx-js-style';
 
-import { MONTH_ABBR, daysInMonth, parseSheetMeta } from '@/domain/calendar';
-import { inferDefaultShift, inferRestDays, inferRotations } from '@/domain/generator';
+import { MONTH_ABBR, daysInMonth, parseSheetMeta, weekdayOf } from '@/domain/calendar';
+import { generateMonth, inferDefaultShift, inferRestDays, inferRotations } from '@/domain/generator';
 import { OFF, type Employee, type LeaveBlock, type Line, type RosterMonth, type RotationRule, type SheetLayout, type ShiftCode, type Weekday } from '@/domain/types';
 
 export interface ImportedEmployee {
@@ -27,6 +27,8 @@ export interface ImportResult {
   /** Codes seen in the sheet that the app doesn't know about yet. */
   unknownCodes: string[];
   warnings: string[];
+  /** The sheet's own key ("L" = Leave, "M(S/L)" = Morning Wknd Lead …), by code. */
+  legend: Record<string, string>;
   /** The source file's shape, for round-tripping on export. */
   layout: SheetLayout;
 }
@@ -49,6 +51,9 @@ export function normalizeShiftCode(raw: string, isRed?: boolean): string {
   if (/leave|annual|vacation|sick|\blv\b/i.test(text)) return 'LV';
 
   const upper = text.toUpperCase();
+  // "E (S/L)", "E(SL)" and "E(S/L)" are one code written three ways.
+  const split = upper.replace(/\s+/g, '').match(/^([MEN])\(S\/?L\)$/);
+  if (split) return `${split[1]}(S/L)`;
   if (KNOWN_WORKED.includes(upper)) return upper;
 
   // Verbose operational shift formats (e.g., "Morning Early | 06:00-16:30 | 10.5H")
@@ -181,6 +186,45 @@ export function importSheet(buffer: ArrayBuffer, sheetName?: string): ImportResu
     }
   }
   dayCols.sort((a, b) => a.day - b.day);
+  const dayByNumber = new Map(dayCols.map((d) => [d.day, d]));
+
+  // ---- cross-check the month against the weekday row ------------------
+  // A tab can carry a stale title (e.g. an August tab still titled "JULY-2026").
+  // The weekday names above the day numbers can't lie, so they decide.
+  const WEEKDAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+  const weekdayScore = (y: number, m: number) => {
+    let labelled = 0;
+    let hits = 0;
+    for (const d of dayCols) {
+      if (d.day > daysInMonth(y, m)) continue;
+      const label = text(headerRow - 1, d.col).slice(0, 3).toLowerCase();
+      if (!WEEKDAYS.includes(label)) continue;
+      labelled++;
+      if (WEEKDAYS[weekdayOf(y, m, d.day)] === label) hits++;
+    }
+    return labelled >= 7 ? hits / labelled : null;
+  };
+  if (headerRow > 0) {
+    const current = weekdayScore(year, month);
+    if (current !== null && current < 0.9) {
+      const fromName = parseTitle(name);
+      const alt =
+        fromName.year && fromName.month && (fromName.year !== year || fromName.month !== month)
+          ? weekdayScore(fromName.year, fromName.month)
+          : null;
+      if (alt !== null && alt >= 0.9 && fromName.year && fromName.month) {
+        warnings.push(
+          `The title says ${MONTH_ABBR[month - 1]} ${year} but the weekdays match ${MONTH_ABBR[fromName.month - 1]} ${fromName.year} (from the tab name) — imported as ${MONTH_ABBR[fromName.month - 1]} ${fromName.year}.`,
+        );
+        year = fromName.year;
+        month = fromName.month;
+      } else {
+        warnings.push(
+          `The weekdays in this sheet don't line up with ${MONTH_ABBR[month - 1]} ${year} — check the month before importing.`,
+        );
+      }
+    }
+  }
 
   const expected = daysInMonth(year, month);
   if (dayCols.length !== expected) {
@@ -209,6 +253,9 @@ export function importSheet(buffer: ArrayBuffer, sheetName?: string): ImportResu
   // ---- employee rows ---------------------------------------------------
   const employees: ImportedEmployee[] = [];
   const unknown = new Set<string>();
+  const legend: Record<string, string> = {};
+  let pastPeople = false;
+  const CODE_LIKE = /^[A-Z]{1,4}(?:\([A-Z/]+\))?$/;
 
   for (let r = headerRow + 1; r <= range.e.r; r++) {
     const rawName = text(r, nameCol);
@@ -223,15 +270,34 @@ export function importSheet(buffer: ArrayBuffer, sheetName?: string): ImportResu
       /^(?:pic|mp|engineer|technician|staff|operator)?\s*(?:morning|evening|night|general|project)\s+shift$/i.test(rowName) ||
       (NAME_ALIASES.has(rowName.toLowerCase()) && r !== headerRow);
 
+    // The totals block ends the people list; anything below it (shift key, notes)
+    // is not an employee.
+    if (isCountRow && employees.length > 0) pastPeople = true;
     if (isCountRow || isSectionHeader) {
       continue;
     }
 
+    // A shift-key row ("M(S/L) | Morning Wknd Lead") has a code for a name, a label
+    // beside it and nothing in the day columns.
+    const keyLabel = text(r, nameCol + 1);
+    if (
+      CODE_LIKE.test(rowName.toUpperCase()) &&
+      keyLabel &&
+      !/^[\d+\s-]+$/.test(keyLabel) &&
+      dayCols.every((d) => text(r, d.col) === '')
+    ) {
+      legend[rowName.toUpperCase().replace(/\s+/g, '')] = keyLabel;
+      continue;
+    }
+    if (pastPeople) continue;
+
     const codes: string[] = [];
     const leaveDays: number[] = [];
 
+    // Look each day up by its number, not by position, so a missing or
+    // reordered day column can't shift every later day onto the wrong date.
     for (let i = 0; i < expected; i++) {
-      const entry = dayCols[i];
+      const entry = dayByNumber.get(i + 1);
       const cell = entry ? at(r, entry.col) : undefined;
       const rawCode = String(cell?.w || cell?.v || '').trim();
       const isRed = isRedFill(cell);
@@ -302,6 +368,7 @@ export function importSheet(buffer: ArrayBuffer, sheetName?: string): ImportResu
     employees,
     unknownCodes: [...unknown],
     warnings,
+    legend,
     layout: { sheetName: name, headerRow, nameCol, preamble, otherCols, extraByName, dayCols },
   };
 }
@@ -386,6 +453,38 @@ export function toRecords(
   });
 
   return { employees, leave };
+}
+
+/**
+ * Hand-edit overrides that make the generated grid match the sheet exactly.
+ *
+ * Rest days, rotations and leave are inferred from the sheet's pattern, which is
+ * lossy (a swapped day, a one-off code, an odd rest pattern). Regenerating from
+ * those rules alone would silently differ from what was imported, so every cell
+ * the rules fail to reproduce is pinned as an override.
+ */
+export function overridesForImport(
+  result: ImportResult,
+  employees: Employee[],
+  leave: LeaveBlock[],
+  lineId: string,
+): Record<string, Record<number, string>> {
+  const generated = generateMonth({
+    year: result.year,
+    month: result.month,
+    lineId,
+    employees,
+    leaveBlocks: leave,
+  });
+  const overrides: Record<string, Record<number, string>> = {};
+  result.employees.forEach((row, i) => {
+    const emp = employees[i];
+    const cells = generated.cells[emp.id] ?? [];
+    row.codes.forEach((code, d) => {
+      if (cells[d]?.code !== code) (overrides[emp.id] ??= {})[d] = code;
+    });
+  });
+  return overrides;
 }
 
 /**

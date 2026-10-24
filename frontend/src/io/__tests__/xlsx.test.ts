@@ -6,7 +6,7 @@ import XLSX from 'xlsx-js-style';
 import { SEED_CODES, SEED_EMPLOYEES, SEED_LEAVE, SEED_LINES } from '@/data/seed';
 import { generateMonth } from '@/domain/generator';
 import { BACKUP_SHEET, buildBackupWorkbook, buildFromLayout, buildWorkbook } from '@/io/exportXlsx';
-import { importBackupWorkbook, importSheet, listSheets, toRecords } from '@/io/importXlsx';
+import { importBackupWorkbook, importSheet, listSheets, overridesForImport, toRecords } from '@/io/importXlsx';
 
 /** The client's real workbook, kept as a fixture so the parser can't drift. */
 const SOURCE = fileURLToPath(new URL('./Roster_September.xlsx', import.meta.url));
@@ -256,5 +256,21 @@ describe("exporting back into the client's own layout", () => {
       const cell = sheet[XLSX.utils.encode_cell({ r: source.layout.headerRow, c: col })];
       expect(String(cell?.v)).toBe(header);
     }
+  });
+});
+
+describe('import accuracy', () => {
+  it.each([0, 1])('regenerated grid matches sheet %i cell for cell', (idx) => {
+    const buffer = sourceBuffer();
+    const result = importSheet(buffer, listSheets(buffer)[idx]);
+    const { employees, leave } = toRecords(result, 'line5', (_n, i) => `e${i}`);
+    const overrides = overridesForImport(result, employees, leave, 'line5');
+    const roster = generateMonth({
+      year: result.year, month: result.month, lineId: 'line5',
+      employees, leaveBlocks: leave, overrides,
+    });
+    result.employees.forEach((row, i) => {
+      expect(roster.cells[employees[i].id].map((c) => c.code)).toEqual(row.codes);
+    });
   });
 });

@@ -18,7 +18,7 @@
  * codes or the work orders change — nothing is stored, so it can't go stale.
  */
 import type { Employee, ResourceRequirement, RosterMonth, ShiftCode, WorkOrder } from './types';
-import { getRequiredCrewCount, lineCodeToId, normalizeLineCode, normalizeWorkType, parseLineCode, tryParseDate } from './workload';
+import { getRequiredCrewCount, lineCodeToId, lineIdsOfPool, normalizeLineCode, normalizeWorkType, parseLineCode, tryParseDate } from './workload';
 
 export type ShiftFamily = 'M' | 'E' | 'N';
 export const SHIFT_FAMILIES: ShiftFamily[] = ['M', 'E', 'N'];
@@ -29,15 +29,17 @@ export const SHIFT_LABEL: Record<ShiftFamily, string> = { M: 'Morning', E: 'Even
  * orders draw from the people of both lines together. Line 5 is its own team.
  */
 export type StaffPool = 'L4_L6' | 'L5';
-export const POOL_LINES: Record<StaffPool, { codes: ('L4' | 'L5' | 'L6')[]; ids: string[]; label: string }> = {
-  L4_L6: { codes: ['L4', 'L6'], ids: ['line4', 'line6'], label: 'Line 4&6' },
-  L5: { codes: ['L5'], ids: ['line5'], label: 'Line 5' },
+export const POOL_LINES: Record<StaffPool, { codes: ('L4' | 'L5' | 'L6')[]; readonly ids: string[]; label: string }> = {
+  // `ids` is read live: it is whichever planner lines are named "Line 4 & 6" / "Line 5"
+  L4_L6: { codes: ['L4', 'L6'], get ids() { return lineIdsOfPool('L4_L6'); }, label: 'Line 4&6' },
+  L5: { codes: ['L5'], get ids() { return lineIdsOfPool('L5'); }, label: 'Line 5' },
 };
 export function poolOf(lineCode: string): StaffPool {
   return lineCode === 'L4' || lineCode === 'L6' ? 'L4_L6' : 'L5';
 }
 export function poolOfLineId(lineId: string): StaffPool {
-  return lineId === 'line4' || lineId === 'line6' ? 'L4_L6' : 'L5';
+  if (POOL_LINES.L4_L6.ids.includes(lineId)) return 'L4_L6';
+  return 'L5';
 }
 
 /**

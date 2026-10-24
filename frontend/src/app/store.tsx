@@ -54,7 +54,7 @@ import type {
   WorkOrder,
 } from '@/domain/types';
 import { validate } from '@/domain/validate';
-import { parseWorkOrdersWorkbook } from '@/domain/workload';
+import { parseWorkOrdersWorkbook, setKnownLines } from '@/domain/workload';
 import { allWorkOrderColumns } from '@/domain/workOrderColumns';
 import {
   POOL_LINES, SHIFT_LABEL, codeFamily, computeWorkload, poolOfLineId, staffOnShift, type ShiftFamily, type WorkloadResult,
@@ -132,6 +132,8 @@ interface RosterStore {
 
   // Work Orders & Resource Requirements Integration
   workOrders: WorkOrder[];
+  /** False until the saved work orders have been read — so an empty list isn't mistaken for "none imported". */
+  workOrdersReady: boolean;
   resourceRequirements: ResourceRequirement[];
   /**
    * Live staffing of every work order against the Planner roster of its own
@@ -144,7 +146,7 @@ interface RosterStore {
   /** Shift codes per line id (for timings / shift families). */
   codesByLine: Record<string, ShiftCode[]>;
   /** Replaces all work orders from an Excel file and records an import report in settings. */
-  uploadWorkOrders(buffer: ArrayBuffer, fileName?: string): Promise<WorkOrderImportReport>;
+  uploadWorkOrders(buffer: ArrayBuffer, fileName?: string, sheetName?: string): Promise<WorkOrderImportReport>;
   saveWorkOrder(wo: WorkOrder): Promise<void>;
   saveResourceRequirement(rr: ResourceRequirement): Promise<void>;
   removeWorkOrder(id: string): Promise<void>;
@@ -231,7 +233,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [allLines, session?.allowedLineId]);
   const allCodes = useLiveQuery(() => db.shiftCodes.orderBy('order').toArray(), [], []) ?? [];
   const leave = useLiveQuery(() => db.leave.toArray(), [], []) ?? [];
-  const workOrders = useLiveQuery(() => db.workOrders.toArray(), [], []) ?? [];
+  const workOrdersLoaded = useLiveQuery(() => db.workOrders.toArray(), []);
+  const workOrders = workOrdersLoaded ?? [];
   const resourceRequirements = useLiveQuery(() => db.resourceRequirements.toArray(), [], []) ?? [];
   const allEmployees = useLiveQuery(() => db.employees.toArray(), [], []) ?? [];
   const allRosters = useLiveQuery(() => db.rosters.toArray(), [], []) ?? [];
@@ -1133,6 +1136,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return map;
   }, [allCodes]);
 
+  // Work orders find their people through the line NAMES, so tell the domain which lines exist
+  setKnownLines(allLines);
+
   const { workload, staffForShift } = useMemo(() => {
     const employeesByLine: Record<string, Employee[]> = {};
     for (const e of [...allEmployees].sort((x, y) => x.order - y.order)) (employeesByLine[e.lineId] ??= []).push(e);
@@ -1177,7 +1183,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       );
     };
     return { workload: result, staffForShift: forShift };
-  }, [workOrders, resourceRequirements, allEmployees, allRosters, leave, codesByLine, roster?.id, roster?.updatedAt]);
+  }, [workOrders, resourceRequirements, allEmployees, allRosters, leave, codesByLine, allLines, roster?.id, roster?.updatedAt]);
 
   /**
    * Planner issues = roster rules + Work Orders shortfalls for the open line &
@@ -1271,22 +1277,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       : [];
 
     return [...woIssues, ...ruleIssues, ...dataIssues, ...unplacedIssue, ...elsewhereIssue];
-  }, [ruleIssues, workload, workOrders, activeLineId, activeYear, activeMonth, codes, codesByLine, employees, roster]);
+  }, [ruleIssues, workload, workOrders, allLines, activeLineId, activeYear, activeMonth, codes, codesByLine, employees, roster]);
 
-  const uploadWorkOrders = useCallback(async (buffer: ArrayBuffer, fileName = 'work orders.xlsx') => {
+  const uploadWorkOrders = useCallback(async (buffer: ArrayBuffer, fileName = 'work orders.xlsx', sheetName?: string) => {
     // Built-in yellow columns + any added in Setup → Excel import columns
     const cfg = await getSettings();
-    const result = parseWorkOrdersWorkbook(buffer, allWorkOrderColumns(cfg.customWorkOrderColumns, cfg.removedBuiltinColumns));
+    const result = parseWorkOrdersWorkbook(buffer, allWorkOrderColumns(cfg.customWorkOrderColumns, cfg.removedBuiltinColumns), sheetName);
     await db.transaction('rw', db.workOrders, async () => {
       await db.workOrders.clear();
       await db.workOrders.bulkPut(result.workOrders);
     });
-    const sanitizedFileName = fileName.replace(/Line\s*4\s*,\s*5\s*(&|and)\s*6/gi, 'Line 5 / 4&6');
+    const sanitizedFileName = fileName.replace(/Line\s*4\s*,\s*5\s*(&|and)\s*6/gi, 'Line 4, 5 & 6');
     const report: WorkOrderImportReport = {
       fileName: sanitizedFileName,
       at: Date.now(),
       rows: result.totalRows,
       headerRow: result.headerRow,
+      sheetName: result.sheetName,
       fileErrors: result.fileErrors,
       problemRows: result.workOrders.filter((w) => w.importWarnings?.length).length,
     };
@@ -1387,6 +1394,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     removeLeave,
 
     workOrders,
+    workOrdersReady: workOrdersLoaded !== undefined,
     resourceRequirements,
     workload,
     staffForShift,

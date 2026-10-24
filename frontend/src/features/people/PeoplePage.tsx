@@ -47,6 +47,7 @@ export function PeoplePage() {
             <Button
               variant="outline"
               size="sm"
+              data-tip={'Group by shift\nSorts the list so Morning, Evening, Night, General and Project people sit together. It changes the order of the list and the Duty Roster rows, not anyone\'s shift.'}
               onClick={async () => {
                 await reorderEmployees(grouped.map((e) => e.id));
                 toast('Reordered by shift.', 'ok');
@@ -57,6 +58,7 @@ export function PeoplePage() {
             <Button
               variant="primary"
               size="sm"
+              data-tip={'Add person\nAdds a new person to this line and opens their card so you can set name, contact, shift, rest days and rotation. They appear in the Duty Roster straight away.'}
               onClick={async () => setEditing(await addEmployee())}
             >
               Add person
@@ -66,11 +68,11 @@ export function PeoplePage() {
 
         <div className="overflow-hidden rounded-xl border border-[var(--line)]">
           <div className="grid grid-cols-[1fr_56px_92px_24px] md:grid-cols-[1fr_120px_84px_120px_90px_36px] gap-3 bg-[var(--surface-3)] px-3 md:px-4 py-2 text-[10.5px] font-semibold uppercase tracking-wider text-ink-3">
-            <span>Name</span>
-            <span className="hidden md:block">Contact</span>
-            <span>Shift</span>
-            <span>Rest days</span>
-            <span className="hidden md:block">Rotation</span>
+            <span data-tip={'Name\nThe name shown in the Duty Roster. The coloured bar beside it is their shift colour.'}>Name</span>
+            <span className="hidden md:block" data-tip={'Contact\nPhone number, for reaching someone to cover a shift.'}>Contact</span>
+            <span data-tip={'Shift\nTheir default shift: what the roster gives them on every day that is not a rest day, leave or a rotation block.'}>Shift</span>
+            <span data-tip={'Rest days\nThe two weekdays this person is off every week. The roster marks them as off automatically.'}>Rest days</span>
+            <span className="hidden md:block" data-tip={'Rotation\nMid-month shift changes for the open month, shown as the number of blocks. Open the person to edit them.'}>Rotation</span>
             <span />
           </div>
 
@@ -84,6 +86,7 @@ export function PeoplePage() {
                 <button
                   key={employee.id}
                   onClick={() => setEditing(employee)}
+                  data-tip={`${employee.name}\nShift ${employee.defaultShift}${employee.restDays.length ? `, off ${employee.restDays.map((d) => WEEKDAY_LABELS[d]).join(' and ')}` : ''}. Click to edit their details, rest days, rotation and leave.`}
                   className="grid w-full grid-cols-[1fr_56px_92px_24px] md:grid-cols-[1fr_120px_84px_120px_90px_36px] items-center gap-3 bg-[var(--surface)] px-3 md:px-4 py-2.5 text-left hover:bg-[var(--surface-2)] transition-colors"
                 >
                   <span className="flex items-center gap-2 min-w-0">
@@ -91,12 +94,12 @@ export function PeoplePage() {
                     <span className="truncate text-[13px] font-medium">{employee.name}</span>
                     {isLeaderEmployee(employee) && (
                       <span className="shrink-0 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 px-1.5 py-px text-[9.5px] uppercase tracking-wide font-semibold flex items-center gap-0.5">
-                        <span title="Team leader">👑</span>
+                        <span data-tip={'Team leader\nLeads this shift team. The Duty Roster marks leaders so you can see who is in charge.'}>👑</span>
                         <span className="hidden sm:inline">Leader</span>
                       </span>
                     )}
                     {employee.pinned && (
-                      <span className="shrink-0 rounded bg-[var(--surface-3)] px-1.5 py-px text-[9.5px] uppercase tracking-wide text-ink-3" title="Fixed — never auto-rotated">
+                      <span className="shrink-0 rounded bg-[var(--surface-3)] px-1.5 py-px text-[9.5px] uppercase tracking-wide text-ink-3" data-tip={'Fixed\nPinned to their shift: Auto-rotate never moves this person to another shift.'}>
                         <span className="sm:hidden">📌</span>
                         <span className="hidden sm:inline">fixed</span>
                       </span>

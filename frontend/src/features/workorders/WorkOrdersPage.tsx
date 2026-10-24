@@ -17,7 +17,7 @@ const GROUP_LINES: Record<LineGroup, string[]> = { L4_L6: ['L4', 'L6'], L5: ['L5
 const GROUP_LABEL: Record<LineGroup, string> = { L5: 'Line 5', L4_L6: 'Line 4&6', ALL: 'All Lines' };
 
 function cleanLineNames(str: string): string {
-  return str.replace(/Line\s*4\s*,\s*5\s*(&|and)\s*6/gi, 'Line 5 / 4&6');
+  return str.replace(/Line\s*4\s*,\s*5\s*(&|and)\s*6/gi, 'Line 4, 5 & 6');
 }
 
 /** Timing text for a shift family from the line's own codes (Setup), e.g. "06:00 – 15:00". */
@@ -159,6 +159,7 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
     lines,
     setLine,
     workOrders,
+    workOrdersReady,
     workload,
     openSheet,
     staffForShift,
@@ -470,12 +471,25 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
     setImporting(true);
     try {
       const buffer = await file.arrayBuffer();
-      const res = await uploadWorkOrders(buffer, file.name);
+      // One sheet only, never combined: "List of SEP SNE WOs" if the file has it, else the work-order list
+      await runImport(buffer, file);
+    } catch (err: any) {
+      toast(`Could not read ${file.name}: ${err.message}`, 'error');
+    } finally {
+      setImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const runImport = async (buffer: ArrayBuffer, file: File, sheetName?: string) => {
+    setImporting(true);
+    try {
+      const res = await uploadWorkOrders(buffer, file.name, sheetName);
       const issues = res.fileErrors.length + res.problemRows;
       toast(
         issues
-          ? `Imported ${res.rows} work orders from ${file.name}. ${res.fileErrors.length ? `${res.fileErrors.length} missing column${res.fileErrors.length === 1 ? '' : 's'}, ` : ''}${res.problemRows} row${res.problemRows === 1 ? '' : 's'} with problems — see the Import report.`
-          : `Imported ${res.rows} work orders from ${file.name}. All configured columns found, no row problems.`,
+          ? `Imported ${res.rows} work orders from ${file.name}${res.sheetName ? ` (sheet “${res.sheetName}”)` : ''}. ${res.fileErrors.length ? `${res.fileErrors.length} missing column${res.fileErrors.length === 1 ? '' : 's'}, ` : ''}${res.problemRows} row${res.problemRows === 1 ? '' : 's'} with problems — see the Import report.`
+          : `Imported ${res.rows} work orders from ${file.name}${res.sheetName ? ` (sheet “${res.sheetName}”)` : ''}. All configured columns found, no row problems.`,
         issues ? 'info' : 'ok',
       );
     } catch (err: any) {
@@ -588,7 +602,9 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
             </div>
             <div>
               <div className="flex items-center gap-3 flex-wrap">
-                <h1 className="text-xl sm:text-2xl lg:text-[25px] font-black tracking-tight text-ink">
+                <h1
+                  className="text-xl sm:text-2xl lg:text-[25px] font-black tracking-tight text-ink"
+                >
                   Maintenance Workorders &amp; Manpower Allocation
                 </h1>
                 {workOrders.length > 0 && (
@@ -602,7 +618,7 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
                     <Icons.AlertTriangle /> {groupConflicts.length} Deficits · {GROUP_LABEL[selectedLine]}
                   </span>
                 ) : workOrders.length > 0 ? (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[12.5px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+ <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[12.5px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
                     <Icons.CheckCircle /> 100% Balanced
                   </span>
                 ) : null}
@@ -626,8 +642,8 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
               <button
                 type="button"
                 onClick={() => setShowClearModal(true)}
-                className="h-10 px-3.5 whitespace-nowrap shrink-0 rounded-xl text-[13px] font-bold border border-rose-500/35 bg-rose-500/10 text-rose-600 dark:text-rose-300 hover:bg-rose-500/20 hover:border-rose-500/50 transition-all shadow-sm active:scale-95 inline-flex items-center gap-2"
                 title="Return to initial work order import screen"
+                className="h-10 px-3.5 whitespace-nowrap shrink-0 rounded-xl text-[13px] font-bold border border-rose-500/35 bg-rose-500/10 text-rose-600 dark:text-rose-300 hover:bg-rose-500/20 hover:border-rose-500/50 transition-all shadow-sm active:scale-95 inline-flex items-center gap-2"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -689,7 +705,15 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
       {/* =========================================================================
           MAIN FULL-WIDTH BODY
          ========================================================================= */}
-      {workOrders.length === 0 ? (
+      {!workOrdersReady ? (
+        // Saved work orders are still being read: don't flash the empty "import" screen
+        <div className="flex-1 grid place-items-center py-24">
+          <div className="flex flex-col items-center gap-3" role="status" aria-live="polite">
+            <span className="h-7 w-7 rounded-full border-2 border-[var(--line-strong)] border-t-[var(--accent)] animate-spin" />
+            <span className="text-[13px] text-ink-3">Loading work orders…</span>
+          </div>
+        </div>
+      ) : workOrders.length === 0 ? (
         <EmptyImport
           importing={importing}
           columns={allWorkOrderColumns(extraColumns, settings.removedBuiltinColumns)}
@@ -715,18 +739,19 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
                     Monthly Work Order Plan
                   </h2>
                   {availablePlanMonths.length > 1 && (
-                    <select
+                    <Select
                       value={planMonthKey}
                       onChange={(e) => setPlanMonthKey(e.target.value)}
-                      className="h-7 px-2.5 rounded-lg border border-[var(--line-strong)] bg-[var(--surface-2)] text-ink text-[12px] font-bold cursor-pointer focus:outline-none focus:border-cyan-500 shadow-xs"
+                      className="h-8 min-w-[112px] rounded-xl border-[var(--line-strong)] pl-3 pr-8 text-[12.5px] font-bold shadow-xs hover:border-cyan-500/60 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/25"
                       title="Select month to inspect planned work orders"
+                      aria-label="Plan month"
                     >
                       {availablePlanMonths.map((mKey) => {
                         const [y, m] = mKey.split('-').map(Number);
                         const label = new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
                         return <option key={mKey} value={mKey}>{label}</option>;
                       })}
-                    </select>
+                    </Select>
                   )}
                 </div>
               </div>
@@ -1059,7 +1084,9 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
           <div className="rounded-2xl border border-[var(--line-strong)] bg-gradient-to-br from-[var(--surface)] via-[var(--surface)] to-[var(--surface-2)] p-4 sm:p-6 shadow-sm hover:shadow-md transition-all">
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3.5 border-b border-[var(--line)]">
               <div>
-                <h3 className="text-[13px] font-black uppercase tracking-wider text-cyan-600 dark:text-cyan-400">
+                <h3
+                  className="text-[13px] font-black uppercase tracking-wider text-cyan-600 dark:text-cyan-400"
+                >
                   WORK ORDER STATUS
                 </h3>
                 <span className="text-[12.5px] text-ink-3">
@@ -1254,7 +1281,9 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
            ========================================================================= */}
         <div>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-3 px-1">
-            <h2 className="text-[14px] font-black text-ink-2 uppercase tracking-wider">
+            <h2
+              className="text-[14px] font-black text-ink-2 uppercase tracking-wider"
+            >
               Shift Manpower Capacity &amp; Net Resource Buffer
             </h2>
             <span className="text-[13px] text-ink-3">
@@ -1295,7 +1324,9 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
             })}
           </div>
           {cardDate && (
-            <p className="mb-3 px-1 text-[13px] text-ink-2">
+            <p
+              className="mb-3 px-1 text-[13px] text-ink-2"
+            >
               Showing <strong className="text-ink">{weekdayDate(cardDate)}</strong>
               {pickedDate ? '' : ' (the day with the biggest deficit)'} · {GROUP_LABEL[selectedLine]}
             </p>
@@ -1462,7 +1493,9 @@ export function WorkOrdersPage({ onOpenPlanner }: { onOpenPlanner?: () => void }
                   <Icons.AlertTriangle />
                 </div>
                 <div>
-                  <h3 className="text-[16px] font-bold text-red-400">
+                  <h3
+                    className="text-[16px] font-bold text-red-400"
+                  >
                     {groupConflicts.length} work order{groupConflicts.length === 1 ? '' : 's'} not fully staffed · {GROUP_LABEL[selectedLine]}
                   </h3>
                   <p className="text-[13.5px] text-ink-2 mt-0.5">
@@ -2735,7 +2768,7 @@ function ImportReport({
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <span className="font-bold text-ink">Import report</span>
           <span className="text-ink-2">
-            <span className="font-mono">{cleanLineNames(report.fileName)}</span> · {new Date(report.at).toLocaleString('en-GB')} · {report.rows} rows · header on row {report.headerRow}
+            <span className="font-mono">{cleanLineNames(report.fileName)}</span> · {new Date(report.at).toLocaleString('en-GB')} · {report.rows} rows{report.sheetName ? ` · sheet “${report.sheetName}”` : ''} · header on row {report.headerRow}
           </span>
           {clean ? (
             <span className="font-semibold text-emerald-400">✓ All yellow columns found, no row problems</span>

@@ -4,10 +4,10 @@ import { useStore } from '@/app/store';
 import { COLOR_SWATCHES, TONE_OPTIONS, codeVars, isHexColor } from '@/app/tones';
 import { Button, Field, Input, Modal, Select, Switch, cx, useToast } from '@/components/ui';
 import { exportBackup, importBackup, importBackupData, newId, resetToSeed } from '@/data/db';
-import { MONTH_NAMES, WEEKDAY_LABELS, monthLabel } from '@/domain/calendar';
+import { MONTH_NAMES, WEEKDAY_LABELS } from '@/domain/calendar';
 import { formatHours, shiftHours } from '@/domain/hours';
 import type { Employee, Line, ResourceRequirement, ShiftCode, Weekday } from '@/domain/types';
-import { normalizeWorkType } from '@/domain/workload';
+import { lineCodeToId, normalizeWorkType } from '@/domain/workload';
 import { codeFamily, type ShiftFamily } from '@/domain/workloadLive';
 import {
   WORK_ORDER_COLUMNS, allWorkOrderColumns, fieldFromHeader, headerKey,
@@ -47,6 +47,7 @@ export function SetupPage() {
             <Button
               size="sm"
               variant="outline"
+              data-tip={'Add line\nCreate another team with its own people, rosters and shift codes.'}
               onClick={() =>
                 setEditingLine({ id: newId('line'), name: 'New line', prefix: 'SLV', order: lines.length + 1 })
               }
@@ -83,6 +84,7 @@ export function SetupPage() {
             <Button
               size="sm"
               variant="outline"
+              data-tip={'Add code\nCreate a new shift code for this line: its name, colour, hours and the minimum people it needs.'}
               onClick={() =>
                 setEditingCode({
                   id: '', label: '', timing: '08:00 – 17:00', tone: 'general',
@@ -305,7 +307,7 @@ export function SetupPage() {
                     toast(err instanceof Error ? err.message : 'Excel export failed.', 'error');
                   }
                 }}
-                title="Download full Excel backup (.xlsx) with all rosters, employees, and shift codes"
+                data-tip={'Download backup (Excel)\nSaves everything — rosters, people and shift codes — as an Excel file you can keep and restore later.'}
                 className="font-medium"
               >
                 Download backup (Excel .xlsx)
@@ -337,12 +339,12 @@ export function SetupPage() {
                     toast(err instanceof Error ? err.message : 'Export failed.', 'error');
                   }
                 }}
-                title={`Download complete database dump as JSON for ${monthLabel(settings.activeYear, settings.activeMonth)}`}
+                data-tip={'Download backup (JSON)\nSaves the complete database as one JSON file. Handy for moving everything to another computer.'}
               >
                 Download backup (JSON)
               </Button>
 
-              <Button variant="outline" size="sm" onClick={() => fileInput.current?.click()}>
+              <Button variant="outline" size="sm" data-tip={'Restore from backup\nLoad a backup file you saved earlier (.xlsx or .json). The data in this browser is replaced by what the file holds.'} onClick={() => fileInput.current?.click()}>
                 Restore from backup (.xlsx or .json)
               </Button>
               <input
@@ -386,7 +388,7 @@ export function SetupPage() {
                 }}
               />
 
-              <Button variant="danger" size="sm" onClick={() => setConfirmReset(true)}>
+              <Button variant="danger" size="sm" data-tip={'Reset to demo data\nReplaces everything here with the September 2026 sample roster. It asks you to confirm first.'} onClick={() => setConfirmReset(true)}>
                 Reset to Demo Data (September 2026)
               </Button>
             </div>
@@ -404,7 +406,7 @@ export function SetupPage() {
                 What does &ldquo;Reset to Demo Data&rdquo; mean?
               </p>
               <p>
-                This button reloads the pre-configured September 2026 sample roster (Line 5 / 4&amp;6, sample employees, and shifts) that came with the tool.
+                This button reloads the pre-configured September 2026 sample roster (Line 4, 5 &amp; 6, sample employees, and shifts) that came with the tool.
                 Use this if you want to wipe test changes and return to the initial demonstration state.
                 To preserve your work before resetting, click <strong>Download backup (Excel .xlsx)</strong>.
               </p>
@@ -479,6 +481,17 @@ export function SetupPage() {
   );
 }
 
+const SECTION_TIPS: Record<string, string> = {
+  'Lines': 'Lines\nThe teams you plan for, such as Line 5 and Line 4 & 6. Each line keeps its own people, rosters and shift codes. Add a line, or click one to change it.',
+  'Shift codes': 'Shift codes\nThe codes used on the roster (Morning, Evening, Night, leave and so on) for the line shown: their colour, hours and how many people each shift needs. Every line has its own set.',
+  'Duty Roster rules & working hours': 'Duty Roster rules & working hours\nThe checks the roster runs on every edit, and how worked hours and overtime are counted.',
+  'Display & Fonts': 'Display & Fonts\nZoom, text size and typeface for this device only — nobody else\'s screen changes.',
+  'Data & Backups': 'Data & Backups\nYour data is stored in this browser. Download a backup before switching computers or clearing the browser, and restore it here.',
+  'Security & Access Passcodes': 'Security & Access Passcodes\nThe supervisor password, plus the personal passwords and direct links you give to each person.',
+  'Excel import columns': 'Excel import columns\nWhich columns the work-order import reads, matched by their header name. Add a column you need or remove one you do not.',
+  'Work Order Resource Standards': 'Work Order Resource Standards\nHow many people a preventive, corrective or inspection job needs, per line and shift. Used when the Excel row gives no crew size.',
+};
+
 function Section({
   title,
   description,
@@ -493,13 +506,13 @@ function Section({
   return (
     <section>
       <div className="mb-2.5 flex flex-wrap items-end gap-3">
-        <div>
+        <div data-tip={SECTION_TIPS[title]}>
           <h2 className="text-[14px] font-semibold">{title}</h2>
           <p className="mt-0.5 text-[12px] text-ink-3">{description}</p>
         </div>
         {action && <div className="ml-auto">{action}</div>}
       </div>
-      <div className="overflow-hidden rounded-xl border border-[var(--line)]">{children}</div>
+      <div data-tip={SECTION_TIPS[title]} className="overflow-hidden rounded-xl border border-[var(--line)]">{children}</div>
     </section>
   );
 }
@@ -839,6 +852,11 @@ Open the link above (your name and password will be pre-filled) to view the sche
 
   const handleSave = () => {
     const cleanAdminPass = adminPassword.trim() || 'supervisor1';
+    if (cleanAdminPass.length < 4) {
+      toast('The supervisor password needs at least 4 characters.', 'error');
+      return;
+    }
+    const passwordChanged = cleanAdminPass !== securitySettings.adminPassword;
     updateSecuritySettings({
       adminPassword: cleanAdminPass,
       assignedPasscodes: assignedList,
@@ -846,7 +864,12 @@ Open the link above (your name and password will be pre-filled) to view the sche
       soundAlert,
       requireName,
     });
-    toast('Security settings and assigned passwords saved!', 'ok');
+    toast(
+      passwordChanged
+        ? 'Your supervisor password was changed. Use the new password the next time you sign in; the old one no longer works.'
+        : 'Security settings and assigned passwords saved!',
+      'ok',
+    );
   };
 
   return (
@@ -858,6 +881,7 @@ Open the link above (your name and password will be pre-filled) to view the sche
           size="sm"
           variant="primary"
           onClick={handleSave}
+          data-tip={'Save Security Settings\nSaves the supervisor password and the assigned passcodes, and applies them to every connected browser straight away.'}
           className="font-medium"
         >
           Save Security Settings
@@ -869,7 +893,7 @@ Open the link above (your name and password will be pre-filled) to view the sche
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field
             label="Supervisor Master Password"
-            hint="Password for Supervisor login with full management & share control."
+            hint="Your own supervisor sign-in password. Change it here and save: the new password is the one you use from now on, and the old one stops working."
           >
             <div className="flex items-center gap-2">
               <Input
@@ -913,6 +937,7 @@ Open the link above (your name and password will be pre-filled) to view the sche
                 setDraftRole('collaborator');
                 setDraftNote('');
               }}
+              data-tip={'Assign New Password & Link\nGive one person their own password and direct link, choose what they may do, and copy the invite to send them.'}
               className="text-xs h-8 px-3 gap-1 font-semibold"
             >
               <span>➕</span> Assign New Password &amp; Link
@@ -1089,6 +1114,7 @@ Open the link above (your name and password will be pre-filled) to view the sche
             variant="primary"
             size="sm"
             onClick={handleSave}
+            data-tip={'Save Security Settings\nSaves the supervisor password and the assigned passcodes, and applies them to every connected browser straight away.'}
             className="font-medium"
           >
             Save Security Settings
@@ -1417,7 +1443,7 @@ function ExcelColumnsSection() {
             <span className="text-[11.5px] text-ink-3">
               After adding, import the Excel file again. Values show on each work order and in the CSV export.
             </span>
-            <Button variant="primary" size="sm" onClick={add}>
+            <Button variant="primary" size="sm" data-tip={'Add column\nAdds this header to the columns the work-order import reads. Import the Excel file again afterwards for it to be read.'} onClick={add}>
               Add column
             </Button>
           </div>
@@ -1445,7 +1471,7 @@ function ResourceRequirementsSection({
   );
 
   // Real shift times from this line's codes (Setup → shift codes)
-  const lineCodesList = codesByLine[activeLine === 'L4' ? 'line4' : 'line5'] ?? [];
+  const lineCodesList = codesByLine[lineCodeToId(activeLine)] ?? [];
   const timingOf = (fam: ShiftFamily) =>
     (lineCodesList.find((c) => c.id === fam) ?? lineCodesList.find((c) => codeFamily(c.id, lineCodesList) === fam))?.timing ?? '';
 
